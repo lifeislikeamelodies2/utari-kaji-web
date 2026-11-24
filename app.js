@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 const {WEEKDAYS,AREA_OPTIONS}=window.HOUSE_DATA;
-const remoteStore=window.GH_SYNC;
+const remoteStore=window.LOCAL_VAULT;
 const {key,dateFromKey,shift,garbageFor,garbageTasksFor}=window.HOUSE_TRASH;
 const today=()=>{const parts=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()).split('-').map(Number);return new Date(parts[0],parts[1]-1,parts[2]);};
 const weekStart=d=>shift(d,-((d.getDay()+6)%7));
@@ -38,7 +38,7 @@ function save(){
   localBaseline=clone(state);
   refreshToken++;
   pending.push(...ops);
-  syncStatus('同期中…','working');
+  syncStatus('端末へ保存中…','working');
   void flushChanges();
 }
 async function flushChanges(){
@@ -50,7 +50,7 @@ async function flushChanges(){
       await remoteStore.applyChanges(batch);
       pending.splice(0,batch.length);
     }catch(err){
-      syncStatus('未同期・再試行待ち','error');toast('保存できませんでした：'+err.message);
+      syncStatus('保存失敗','error');toast('保存できませんでした：'+err.message);
       busy=false;return;
     }
   }
@@ -66,11 +66,11 @@ async function loadRemote(){
     if(busy||pending.length||token!==refreshToken)return;
     state={tasks:remote.tasks,completions:remote.completions,settings:{...clone(defaultSettings),...remote.settings}};
     localBaseline=clone(state);ready=true;
-    syncStatus('共有済み','ok');
+    syncStatus('端末内に保存','ok');
     render();
   }catch(err){
-    syncStatus('接続できません','error');
-    if(!ready)document.querySelector('#screen').innerHTML=`<div class="panel" style="margin:22px"><h2>共有データに接続できません</h2><p>${esc(err.message)}</p><button class="button" onclick="location.reload()">再読み込み</button></div>`;
+    syncStatus('読込失敗','error');
+    if(!ready)document.querySelector('#screen').innerHTML=`<div class="panel" style="margin:22px"><h2>共有データに読込失敗</h2><p>${esc(err.message)}</p><button class="button" onclick="location.reload()">再読み込み</button></div>`;
   } finally { refreshing=false; }
 }
 function personLabel(p){return p==='me'?state.settings.meName:p==='partner'?state.settings.partnerName:'どちらでも'}
@@ -98,26 +98,41 @@ function weekHTML(){const counts=weekCounts(currentWeek);return header('WEEKLY R
 function recurrenceText(t){if(t.frequency==='daily')return '毎日';if(t.frequency==='weekly')return (t.days||[]).map(d=>WEEKDAYS[d]+'曜').join('・')||'曜日未設定';if(t.frequency==='once')return t.date||'日付未設定';return t.frequency}
 function tasksHTML(){const list=state.tasks.filter(t=>taskFilter==='all'||t.person===taskFilter);return header('TASK LIBRARY','家事を管理する','今ある家事を編集したり、新しい家事を自由に追加できます。追加した家事も毎週の一覧に反映されます。')+`<div class="subhead"><p>登録済み ${state.tasks.length} 件</p><button class="button" data-add-task>${icon('plus')} 新しい家事を追加</button></div><div class="filter-row">${[['all','すべて'],['me',state.settings.meName],['partner',state.settings.partnerName],['shared','共同タスク']].map(([k,l])=>`<button class="filter ${taskFilter===k?'active':''}" data-filter="${k}">${esc(l)}</button>`).join('')}</div><div class="panel">${list.map(t=>`<div class="manage-row"><div class="detail"><div class="manage-title">${esc(t.title)}</div><div class="manage-caption">${esc(t.area)} ・ ${esc(recurrenceText(t))} ・ ${esc(personLabel(t.person))}</div></div><div class="manage-action"><button class="micro-button" data-edit="${esc(t.id)}" title="編集" aria-label="${esc(t.title)}を編集">${icon('edit')}</button><button class="micro-button" data-delete="${esc(t.id)}" title="削除" aria-label="${esc(t.title)}を削除">${icon('trash')}</button></div></div>`).join('')||'<div class="empty-state">この担当の家事はありません</div>'}</div>`;}
 function garbageHTML(){let list=[];for(let i=0;i<35;i++){const d=shift(today(),i),item=garbageFor(d,state.settings);if(item)list.push({d,...item});}return header('GARBAGE CALENDAR','ごみ収集カレンダー',`${esc(state.settings.locality||'登録地域')}の収集パターンを表示しています。特殊な収集日や年度切替は自治体の公式案内をご確認ください。`)+`<div class="notice"><div class="notice-title">${icon('info')} 前夜に準備、当日朝に搬出</div><p>ごみの準備と搬出は${esc(state.settings.partnerName)}の固定担当です。収集日当日の朝8:30までに、指定の集積場所へ出してください。金曜日の品目は基準日を登録するまで「要確認」と表示されます。</p></div><div class="section-head"><h2 class="section-title">今後の収集予定</h2><button class="button-secondary" data-nav="settings">収集日を設定 ${icon('settings')}</button></div><div class="garbage-list">${list.map(x=>`<div class="garbage-item"><div class="garbage-date"><b>${x.d.getDate()}</b><small>${x.d.getMonth()+1}月 ${WEEKDAYS[x.d.getDay()]}曜</small></div><div><div class="garbage-name">${esc(x.name)}</div><div class="garbage-info">${x.uncertain?'<span class="pill warning">収集品目は要確認</span>':'前夜に準備・当日朝8:30までに搬出'}</div></div></div>`).join('')}</div><p class="caption-line" style="margin-top:18px">※ この画面は自治体との自動連携ではありません。祝日、年末年始、収集停止や振替は自治体の公式サイト・地域の配布カレンダーを優先してください。</p>`;}
-function settingsHTML(){const s=state.settings;const overrides=Object.entries(s.garbageOverrides||{}).sort((a,b)=>a[0].localeCompare(b[0]));return header('PREFERENCES','設定・データの管理','2人で共有する表示名・収集日の例外・バックアップを管理します。')+`<div class="settings-grid"><section class="panel settings-card"><h3>家事をする人の表示名</h3><p>家事の担当や完了記録に表示する名前です。</p><form id="names-form"><div class="form-field"><label for="name-me">私の表示名</label><input class="input" id="name-me" name="meName" maxlength="30" value="${esc(s.meName)}" required></div><div class="form-field"><label for="name-partner">相手の表示名</label><input class="input" id="name-partner" name="partnerName" maxlength="30" value="${esc(s.partnerName)}" required></div><button class="button" type="submit">名前を保存</button></form></section><section class="panel settings-card"><h3>金曜日の資源物を自動表示</h3><p>市のカレンダーで確認できた金曜日を1日指定すると、以降は隔週交互の目安を表示できます。</p><form id="friday-form"><div class="form-field"><label for="friday-date">収集が確認できた金曜日</label><input class="input" id="friday-date" type="date" name="fridayAnchor" value="${esc(s.fridayAnchor||'')}"></div><div class="form-field"><label for="friday-type">その日の収集品目</label><select class="input" id="friday-type" name="fridayType"><option value="">未設定</option><option value="paper" ${s.fridayType==='paper'?'selected':''}>古紙類</option><option value="bottles" ${s.fridayType==='bottles'?'selected':''}>びん・かん・ペットボトル等</option></select></div><button type="submit" class="button">収集パターンを保存</button><div class="help">年末年始等は隔週パターンが変更される場合があります。公式カレンダーを優先してください。</div></form></section><section class="panel settings-card"><h3>収集日の例外設定</h3><p>休止日や振替収集、金曜日の品目変更を日付ごとに上書きできます。</p><form id="override-form"><div class="form-field"><label for="override-date">対象日</label><input class="input" name="date" id="override-date" type="date" required></div><div class="form-field"><label for="override-type">その日の収集品目</label><select class="input" name="garbage" id="override-type"><option value="none">収集なし</option><option value="燃やせるごみ">燃やせるごみ</option><option value="プラスチック製容器包装・製品">プラスチック製容器包装・製品</option><option value="燃やせないごみ">燃やせないごみ</option><option value="衣類・布類">衣類・布類</option><option value="スプレー缶">スプレー缶</option><option value="古紙類">古紙類</option><option value="びん・かん・ペットボトル・廃食用油・金属類">びん・かん・ペットボトル・廃食用油・金属類</option></select></div><button class="button" type="submit">例外日を追加</button></form>${overrides.length?`<div class="divider"></div><div class="small-list-title">登録済みの例外</div>${overrides.map(([date,label])=>`<div class="small-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(date)}：${esc(label==='none'?'収集なし':label)}</span><button class="micro-button" data-remove-override="${esc(date)}" aria-label="例外を削除">${icon('close')}</button></div>`).join('')}`:''}</section><section class="panel settings-card"><h3>バックアップとデータ移行</h3><p>現在の共有データをJSON形式でバックアップできます。読み込み内容は非公開GitHubリポジトリに反映されます。</p><div class="button-row"><button class="button-secondary" data-export>${icon('download')} バックアップ</button><button class="button-secondary" data-import>${icon('upload')} 読み込み</button><input id="import-file" type="file" accept="application/json,.json" hidden></div><div class="divider"></div><div class="info-callout">完了履歴・家事・ごみ設定は非公開GitHubリポジトリで共有します。約30秒ごとに更新を確認します。トークンは公開コードには保存しません。通信失敗中の変更は画面を閉じると失われる場合があります。</div></section></div>`;}
-function render(){navHTML();document.querySelector('#top-date').textContent=dateLabel(today(),true);let html;if(view==='home')html=homeHTML();else if(view==='week')html=weekHTML();else if(view==='tasks')html=tasksHTML();else if(view==='garbage')html=garbageHTML();else html=settingsHTML();document.querySelector('#screen').innerHTML=html;const logout=document.querySelector('#auth-logout');if(!logout){const top=document.querySelector('.topbar-spacer');if(top)top.insertAdjacentHTML('beforebegin',`<button id="auth-logout" title="GitHubの接続を切断">切断</button>`);}}
+function settingsHTML(){const s=state.settings;const overrides=Object.entries(s.garbageOverrides||{}).sort((a,b)=>a[0].localeCompare(b[0]));return header('PREFERENCES','設定・データの管理','端末内の表示名・収集日の例外・暗号化バックアップを管理します。')+`<div class="settings-grid"><section class="panel settings-card"><h3>家事をする人の表示名</h3><p>家事の担当や完了記録に表示する名前です。</p><form id="names-form"><div class="form-field"><label for="name-me">私の表示名</label><input class="input" id="name-me" name="meName" maxlength="30" value="${esc(s.meName)}" required></div><div class="form-field"><label for="name-partner">相手の表示名</label><input class="input" id="name-partner" name="partnerName" maxlength="30" value="${esc(s.partnerName)}" required></div><button class="button" type="submit">名前を保存</button></form></section><section class="panel settings-card"><h3>金曜日の資源物を自動表示</h3><p>市のカレンダーで確認できた金曜日を1日指定すると、以降は隔週交互の目安を表示できます。</p><form id="friday-form"><div class="form-field"><label for="friday-date">収集が確認できた金曜日</label><input class="input" id="friday-date" type="date" name="fridayAnchor" value="${esc(s.fridayAnchor||'')}"></div><div class="form-field"><label for="friday-type">その日の収集品目</label><select class="input" id="friday-type" name="fridayType"><option value="">未設定</option><option value="paper" ${s.fridayType==='paper'?'selected':''}>古紙類</option><option value="bottles" ${s.fridayType==='bottles'?'selected':''}>びん・かん・ペットボトル等</option></select></div><button type="submit" class="button">収集パターンを保存</button><div class="help">年末年始等は隔週パターンが変更される場合があります。公式カレンダーを優先してください。</div></form></section><section class="panel settings-card"><h3>収集日の例外設定</h3><p>休止日や振替収集、金曜日の品目変更を日付ごとに上書きできます。</p><form id="override-form"><div class="form-field"><label for="override-date">対象日</label><input class="input" name="date" id="override-date" type="date" required></div><div class="form-field"><label for="override-type">その日の収集品目</label><select class="input" name="garbage" id="override-type"><option value="none">収集なし</option><option value="燃やせるごみ">燃やせるごみ</option><option value="プラスチック製容器包装・製品">プラスチック製容器包装・製品</option><option value="燃やせないごみ">燃やせないごみ</option><option value="衣類・布類">衣類・布類</option><option value="スプレー缶">スプレー缶</option><option value="古紙類">古紙類</option><option value="びん・かん・ペットボトル・廃食用油・金属類">びん・かん・ペットボトル・廃食用油・金属類</option></select></div><button class="button" type="submit">例外日を追加</button></form>${overrides.length?`<div class="divider"></div><div class="small-list-title">登録済みの例外</div>${overrides.map(([date,label])=>`<div class="small-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(date)}：${esc(label==='none'?'収集なし':label)}</span><button class="micro-button" data-remove-override="${esc(date)}" aria-label="例外を削除">${icon('close')}</button></div>`).join('')}`:''}</section><section class="panel settings-card"><h3>バックアップとデータ移行</h3><p>暗号化バックアップを保存し、別の端末に手動で移せます。非公開GitHubに残した以前のJSONも手動で読み込めます。</p><div class="button-row"><button class="button-secondary" data-export>${icon('download')} バックアップ</button><button class="button-secondary" data-import>${icon('upload')} 読み込み</button><input id="import-file" type="file" accept="application/json,.json" hidden></div><div class="divider"></div><div class="info-callout">完了履歴・家事・ごみ設定は合言葉から作る鍵で暗号化し、この端末内に保存します。2台の自動同期はありません。サイトデータを削除すると記録も消えるため、暗号化バックアップを取ってください。</div></section></div>`;}
+function render(){navHTML();document.querySelector('#top-date').textContent=dateLabel(today(),true);let html;if(view==='home')html=homeHTML();else if(view==='week')html=weekHTML();else if(view==='tasks')html=tasksHTML();else if(view==='garbage')html=garbageHTML();else html=settingsHTML();document.querySelector('#screen').innerHTML=html;const logout=document.querySelector('#auth-logout');if(!logout){const top=document.querySelector('.topbar-spacer');if(top)top.insertAdjacentHTML('beforebegin',`<button id="auth-logout" title="家事帖を施錠">施錠</button>`);}}
 function navigate(v){view=v;if(v==='week'){if(!weekDates(currentWeek).some(d=>key(d)===key(chosenDate))){currentWeek=weekStart(today());chosenDate=today()}}render();window.scrollTo({top:0,behavior:'instant'})}
 let toastTimer;
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2400)}
 function closeModal(){document.querySelector('#modal-root').innerHTML=''}
 function modal(title,body,footer=''){document.querySelector('#modal-root').innerHTML=`<div class="modal-overlay" data-overlay><div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="icon-button" data-close-modal aria-label="閉じる">${icon('close')}</button></div>${body}${footer}</div></div>`;document.querySelector('.modal-box input, .modal-box button')?.focus()}
 function findTask(dateStr,id){const day=dateFromKey(dateStr);return tasksForDate(day).find(t=>t.id===id)}
-function finish(task,d,by){state.completions[recordKey(task,d)]={by,at:new Date().toISOString()};save();closeModal();render();toast('完了を反映中です')}
+function finish(task,d,by){state.completions[recordKey(task,d)]={by,at:new Date().toISOString()};save();closeModal();render();toast('完了を保存しています')}
 function choosePerformer(task,d){const options=[[state.settings.meName,state.settings.meName],[state.settings.partnerName,state.settings.partnerName],['2人で','2人'],['実施者を記録しない','未記録']];modal('誰が担当しましたか？',`<div class="modal-body"><b>${esc(task.title)}</b><br>作業した人を選んでください。後から変更もできます。</div><div class="performer-options">${options.map(([label,val])=>`<button class="performer-button" data-performer="${esc(val)}" data-id="${esc(task.id)}" data-date="${key(d)}">${esc(label)}</button>`).join('')}</div>`)}
 function editTask(id){const t=id?state.tasks.find(t=>t.id===id):null;const task=t||{title:'',area:'その他',person:'shared',frequency:'weekly',days:[today().getDay()],memo:'',date:key(today())};const weekdays=[1,2,3,4,5,6,0];modal(t?'家事を編集':'家事を追加',`<form id="task-form" data-id="${esc(t?.id||'')}"><div class="form-field"><label for="task-title">家事の名前</label><input class="input" id="task-title" name="title" maxlength="100" required placeholder="例：窓のサッシを拭く" value="${esc(task.title)}"></div><div class="form-grid"><div class="form-field"><label for="task-area">場所・分類</label><input list="areas" class="input" id="task-area" name="area" maxlength="50" value="${esc(task.area)}"><datalist id="areas">${AREA_OPTIONS.map(a=>`<option value="${esc(a)}">`).join('')}</datalist></div><div class="form-field"><label for="task-person">担当</label><select class="input" name="person" id="task-person"><option value="shared" ${task.person==='shared'?'selected':''}>共同・できる方</option><option value="me" ${task.person==='me'?'selected':''}>${esc(state.settings.meName)}</option><option value="partner" ${task.person==='partner'?'selected':''}>${esc(state.settings.partnerName)}</option></select></div></div><div class="form-field"><label for="task-frequency">繰り返し</label><select class="input" name="frequency" id="task-frequency"><option value="weekly" ${task.frequency==='weekly'?'selected':''}>毎週・指定した曜日</option><option value="daily" ${task.frequency==='daily'?'selected':''}>毎日</option><option value="once" ${task.frequency==='once'?'selected':''}>1回だけ（指定日）</option></select></div><div class="form-field"><label>毎週の曜日（毎週の場合）</label><div class="day-checks">${weekdays.map(n=>`<label><input type="checkbox" name="days" value="${n}" ${(task.days||[]).includes(n)?'checked':''}>${WEEKDAYS[n]}曜</label>`).join('')}</div></div><div class="form-field"><label for="task-date">1回だけの実施日</label><input class="input" id="task-date" name="date" type="date" value="${esc(task.date||key(today()))}"></div><div class="form-field"><label for="task-memo">備考（任意）</label><textarea class="input" id="task-memo" name="memo" rows="2" maxlength="300">${esc(task.memo||'')}</textarea></div><div class="modal-footer"><button class="button-secondary" type="button" data-close-modal>キャンセル</button><button class="button" type="submit">${t?'変更を保存':'家事を追加'}</button></div></form>`)}
 function removeTask(id){const t=state.tasks.find(t=>t.id===id);if(!t)return;modal('家事を削除しますか？',`<div class="modal-body">「${esc(t.title)}」を家事一覧から削除します。過去の完了履歴も表示対象外になります。</div><div class="modal-footer"><button class="button-secondary" data-close-modal>キャンセル</button><button class="button-danger" data-confirm-delete="${esc(id)}">削除する</button></div>`)}
-function exportData(){const blob=new Blob([JSON.stringify({...state,exportedAt:new Date().toISOString(),app:'ふたりの家事帖'},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`futari-kaji-backup-${key(today())}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('バックアップを保存しました')}
-async function importData(file){try{const text=await file.text();if(text.length>5_000_000)throw Error('サイズが大きすぎます');const parsed=JSON.parse(text);if(!Array.isArray(parsed.tasks)||!parsed.completions||typeof parsed.completions!=='object'||!parsed.settings||typeof parsed.settings!=='object')throw Error('形式が正しくありません');if(!confirm('現在の家事・完了履歴をバックアップ内容で置き換えます。よろしいですか？'))return;state={tasks:parsed.tasks.filter(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&['shared','me','partner'].includes(t.person)&&['daily','weekly','once'].includes(t.frequency)),completions:parsed.completions,settings:{...structuredClone(defaultSettings),...parsed.settings}};save();render();toast('バックアップを読み込みました')}catch(err){toast('読み込みに失敗しました：'+err.message)}}
+function downloadText(text,filename){const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob),el=document.createElement('a');el.href=url;el.download=filename;document.body.append(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function exportData(){try{downloadText(remoteStore.exportEncryptedBackup(),'futari-kaji-encrypted-'+key(today())+'.json');toast('暗号化バックアップを保存しました')}catch(e){toast('バックアップに失敗しました：'+e.message)}}
+async function importData(file){try{
+ if(pending.length)await flushChanges();if(pending.length)throw Error('未保存の変更があります。もう一度お試しください');
+ if(file.size>5000000)throw Error('ファイルが大きすぎます');
+ const parsed=JSON.parse(await file.text());let data;
+ if(parsed&&parsed.type==='futari-kaji-encrypted-v1'){
+  const pass=prompt('バックアップの合言葉を入力してください');if(pass===null)return;
+  if(!confirm('現在の端末の記録を、バックアップで置き換えますか？'))return;
+  data=await remoteStore.importEncryptedBackup(parsed,pass);
+ }else{
+  if(!Array.isArray(parsed?.tasks)||!parsed.completions||!parsed.settings)throw Error('家事データの形式が正しくありません');
+  if(!confirm('暗号化されていないJSONを読み込みます。現在の記録を置き換えますか？ 元のJSONは取込後に端末から削除することを推奨します'))return;
+  data=await remoteStore.replaceAll(parsed);
+ }
+ state={tasks:data.tasks,completions:data.completions,settings:{...clone(defaultSettings),...data.settings}};localBaseline=clone(state);pending=[];render();toast('端末内で暗号化して保存しました');
+ }catch(err){toast('読み込みに失敗しました：'+err.message)}finally{const input=document.querySelector('#import-file');if(input)input.value=''}}
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');
  if(e.target.matches('[data-overlay]')){closeModal();return}
  if(!b)return;
  if(b.hasAttribute('data-close-modal')){closeModal();return}
- if(b.id==='auth-logout'){if(pending.length&&!confirm('未同期の変更が残っています。切断しますか？'))return;remoteStore.logout();ready=false;pending=[];document.querySelector('#auth-overlay').hidden=false;document.querySelector('#gh-token').value='';document.querySelector('#gh-token').focus();return}
+ if(b.id==='auth-logout'){if(pending.length&&!confirm('保存中の変更が残っています。施錠しますか？'))return;remoteStore.logout();location.reload();return}
  if(b.dataset.nav){navigate(b.dataset.nav);return}
  if(b.id==='quick-add'||b.hasAttribute('data-add-task')){editTask();return}
  if(b.hasAttribute('data-week-shift')){currentWeek=shift(currentWeek,Number(b.dataset.weekShift));chosenDate=currentWeek;render();return}
@@ -126,8 +141,8 @@ document.addEventListener('click',e=>{
  if(b.hasAttribute('data-filter')){taskFilter=b.dataset.filter;render();return}
  if(b.dataset.edit){editTask(b.dataset.edit);return}
  if(b.dataset.delete){removeTask(b.dataset.delete);return}
- if(b.dataset.confirmDelete){const id=b.dataset.confirmDelete;state.tasks=state.tasks.filter(t=>t.id!==id);save();closeModal();render();toast('削除を反映中です');return}
- if(b.dataset.check){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.check);if(!t)return;const k=recordKey(t,d);if(state.completions[k]){delete state.completions[k];save();render();toast('未完了へ反映中です');return}if(t.person==='shared')choosePerformer(t,d);else finish(t,d,personLabel(t.person));return}
+ if(b.dataset.confirmDelete){const id=b.dataset.confirmDelete;state.tasks=state.tasks.filter(t=>t.id!==id);save();closeModal();render();toast('削除を保存しています');return}
+ if(b.dataset.check){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.check);if(!t)return;const k=recordKey(t,d);if(state.completions[k]){delete state.completions[k];save();render();toast('未完了を保存しています');return}if(t.person==='shared')choosePerformer(t,d);else finish(t,d,personLabel(t.person));return}
  if(b.dataset.changePerson){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.changePerson);if(t)choosePerformer(t,d);return}
  if(b.hasAttribute('data-performer')){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.id);if(t)finish(t,d,b.dataset.performer);return}
  if(b.hasAttribute('data-remove-override')){delete state.settings.garbageOverrides[b.dataset.removeOverride];save();render();toast('例外設定を削除しました');return}
@@ -149,7 +164,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(pending.length)void flushChanges();else void loadRemote();}});
 // The private app never caches pages or personal data for offline use.
 if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});}
-document.querySelector('#screen').innerHTML='<div class="panel" style="margin:22px">GitHubの接続を確認しています…</div>';
+document.querySelector('#screen').innerHTML='<div class="panel" style="margin:22px">合言葉を入力すると家事帖を開けます。</div>';
 async function signIn(secret,store){
  const btn=document.querySelector('#auth-submit'),error=document.querySelector('#auth-error');
  error.textContent='';btn.disabled=true;btn.textContent='確認中…';
@@ -158,17 +173,17 @@ async function signIn(secret,store){
   state={tasks:result.snapshot.tasks,completions:result.snapshot.completions,settings:{...clone(defaultSettings),...result.snapshot.settings}};
   localBaseline=clone(state);pending=[];ready=true;
   document.querySelector('#auth-overlay').hidden=true;
-  document.querySelector('#gh-token').value='';syncStatus('GitHub共有済み','ok');render();
+  document.querySelector('#gh-token').value='';syncStatus('GitHub端末内に保存','ok');render();
  }catch(e){error.textContent='接続に失敗しました：'+e.message;syncStatus('認証待ち','error')}
- finally{btn.disabled=false;btn.textContent='GitHubに接続する'}
+ finally{btn.disabled=false;btn.textContent='家事帖を開く'}
 }
 document.querySelector('#auth-form').addEventListener('submit',event=>{
  event.preventDefault();const input=document.querySelector('#gh-token');
- void signIn(input.value,document.querySelector('#keep-tab').checked);
+ if(!remoteStore.hasVault()&&input.value!==document.querySelector('#confirm-passphrase').value){document.querySelector('#auth-error').textContent='確認用の合言葉が一致しません';return;}void signIn(input.value,false);
 });
-const previous=remoteStore.restore();
-if(previous){document.querySelector('#keep-tab').checked=true;void signIn(previous,true)}
-else{syncStatus('未接続','error')}
+document.querySelector('#confirm-wrap').hidden=remoteStore.hasVault();const previous=remoteStore.restore();
+if(previous){void signIn(previous,false)}
+else{syncStatus('施錠中','error')}
 
 window.addEventListener('beforeunload',event=>{if(pending.length){event.preventDefault();event.returnValue='';}});
 setInterval(()=>{if(document.hidden||!ready)return;if(pending.length)void flushChanges();else void loadRemote()},30000);
