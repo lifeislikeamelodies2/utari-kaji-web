@@ -173,12 +173,12 @@ async function signIn(secret,store){
   state={tasks:result.snapshot.tasks,completions:result.snapshot.completions,settings:{...clone(defaultSettings),...result.snapshot.settings}};
   localBaseline=clone(state);pending=[];ready=true;
   document.querySelector('#auth-overlay').hidden=true;
-  document.querySelector('#gh-token').value='';syncStatus('端末内に保存','ok');render();
+  document.querySelector('#passphrase-input').value='';syncStatus('端末内に保存','ok');render();
  }catch(e){error.textContent='開錠できませんでした：'+e.message;syncStatus('認証待ち','error')}
  finally{btn.disabled=false;btn.textContent='家事帖を開く'}
 }
 document.querySelector('#auth-form').addEventListener('submit',event=>{
- event.preventDefault();const input=document.querySelector('#gh-token');
+ event.preventDefault();const input=document.querySelector('#passphrase-input');
  if(!remoteStore.hasVault()&&input.value!==document.querySelector('#confirm-passphrase').value){document.querySelector('#auth-error').textContent='確認用の合言葉が一致しません';return;}void signIn(input.value,false);
 });
 document.querySelector('#confirm-wrap').hidden=remoteStore.hasVault();const previous=remoteStore.restore();
