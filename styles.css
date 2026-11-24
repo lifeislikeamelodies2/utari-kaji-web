@@ -34,3 +34,6 @@
 .auth-error{min-height:20px;color:#ab3d3d;font-size:12px;line-height:1.7}
 .auth-card .auth-footnote{font-size:12px;margin-top:20px;color:#7b877e}
 #auth-logout{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-left:6px;padding:6px 8px;border:1px solid #b8cac1;border-radius:8px;color:#45675b;background:transparent;font-size:12px;cursor:pointer}
+
+/* 初回だけ表示する確認欄を確実に非表示にする */
+#confirm-wrap[hidden]{display:none}
