@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#264a42">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src https://api.github.com; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
   <meta name="description" content="2人の暮らしの家事を、無理なく分け合うための週間ToDoアプリ。">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -40,7 +40,7 @@
       <div class="sidebar-footer"><span class="tiny-dot"></span> 家事記録は非公開GitHubに保存</div>
     </aside>
     <div class="app-main">
-      <header class="topbar"><div class="mobile-brand"><span class="brand-mark small"><svg class="ico"><use href="#i-home"/></svg></span><strong>ふたりの家事帖</strong></div><div class="topbar-spacer"></div><div class="date-chip" id="top-date"></div><div class="sync-chip" id="sync-status" role="status" aria-live="polite">接続中…</div><button id="quick-add" class="icon-button top-add" title="家事を追加" aria-label="家事を追加"><svg class="ico"><use href="#i-plus"/></svg></button></header>
+      <header class="topbar"><div class="mobile-brand"><span class="brand-mark small"><svg class="ico"><use href="#i-home"/></svg></span><strong>ふたりの家事帖</strong></div><div class="topbar-spacer"></div><div class="date-chip" id="top-date"></div><div class="sync-chip" id="sync-status" role="status" aria-live="polite">施錠中</div><button id="quick-add" class="icon-button top-add" title="家事を追加" aria-label="家事を追加"><svg class="ico"><use href="#i-plus"/></svg></button></header>
       <main id="screen" tabindex="-1" aria-live="polite"></main>
     </div>
   </div>
@@ -54,10 +54,10 @@
       <h1 id="auth-title">ふたりの家事帖</h1>
       <p>家事の予定と完了記録は非公開GitHubリポジトリに保存しています。利用を許可された方だけがデータにアクセスできます。</p>
       <form id="auth-form">
-        <label for="gh-token">GitHubアクセス用トークン</label>
-        <input id="gh-token" name="token" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="github_pat_... / ghp_..." />
-        <label class="auth-checkbox"><input type="checkbox" id="keep-tab" /> このタブを開いている間だけ記憶する</label>
-        <button type="submit" class="button auth-submit" id="auth-submit">GitHubに接続する</button>
+        <label for="gh-token">合言葉（初回は16文字以上）</label>
+        <input id="gh-token" name="passphrase" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="ふたりで決めた長めの合言葉" />
+        <div class="help">初回は16文字以上の合言葉を設定します。2回目以降も同じ合言葉を使用します。忘れると復元できません。</div><div id="confirm-wrap" class="form-field"><label for="confirm-passphrase">合言葉をもう一度入力（初回のみ）</label><input id="confirm-passphrase" class="input" type="password" autocomplete="new-password" spellcheck="false" placeholder="確認用の合言葉"></div>
+        <button type="submit" class="button auth-submit" id="auth-submit">家事帖を開く</button>
         <div id="auth-error" class="auth-error" aria-live="polite"></div>
       </form>
       <p class="auth-footnote">GitHubのパスワードを入力しないでください。トークンを公開ファイルには保存しません。共有端末では「記憶する」を選ばないでください。</p>
@@ -65,7 +65,7 @@
   </div>
   <script src="data.js"></script>
   <script src="trash.js"></script>
-  <script src="github-sync.js"></script>
+  <script src="vault.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
