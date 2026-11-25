@@ -280,7 +280,7 @@ document.querySelector('#auth-form').addEventListener('submit',event=>{
  if(!remoteStore.hasVault()&&input.value!==document.querySelector('#confirm-passphrase').value){document.querySelector('#auth-error').textContent='確認用の合言葉が一致しません';return;}void signIn(input.value,false);
 });
 window.HOUSE_LEDGER.init(()=>{if(view==='ledger'&&ready)render()});
-window.HOUSE_SCHEDULE.init(()=>{if((view==='schedule'||view==='home')&&ready)render()});
+window.HOUSE_SCHEDULE.init(reason=>{if(!ready||!(view==='schedule'||view==='home'))return;if(reason==='remote'&&view==='schedule'&&document.querySelector('#schedule-form')?.contains(document.activeElement))return;render()});
 document.querySelector('#confirm-wrap').hidden=remoteStore.hasVault();const previous=remoteStore.restore();
 if(previous){void signIn(previous,false)}
 else{syncStatus('施錠中','error')}
