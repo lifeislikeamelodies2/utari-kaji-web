@@ -37,10 +37,10 @@ function card(r){
  ${r.status==='pending'&&links.has(r.id)?`<a class="button schedule-share-link" href="${esc(links.get(r.id))}" target="_blank" rel="noopener noreferrer">GitHubで共有を確定</a>`:''}</div></div></article>`;
 }
 function homeHTML(){
- const list=upcoming(),limited=list.slice(0,40);
+ const list=upcoming();
  return `<section class="hero-schedule" aria-label="これから1か月の予定">
  <div class="hero-schedule-head"><strong>これから1か月の予定</strong><button type="button" data-nav="schedule">予定を管理</button></div>
- ${list.length?`<div class="hero-schedule-list">${limited.map(r=>`<div class="hero-schedule-row"><b>${dateLabel(r.date)}${r.time?' '+esc(r.time):''}</b><span>${esc(r.title)}</span><small>${esc(name(r.person))}${r.place?'・'+esc(r.place):''}</small></div>`).join('')}</div>${list.length>40?'<small>続きは「予定を管理」で確認できます</small>':''}`:
+ ${list.length?`<div class="hero-schedule-list">${list.map(r=>`<div class="hero-schedule-row"><b>${dateLabel(r.date)}${r.time?' '+esc(r.time):''}</b><span>${esc(r.title)}</span><small>${esc(name(r.person))}${r.place?'・'+esc(r.place):''}</small></div>`).join('')}</div>`:
  '<p class="hero-schedule-empty">1か月以内の予定はまだありません。</p>'}
  </section>`;
 }
