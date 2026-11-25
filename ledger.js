@@ -19,8 +19,8 @@ const extractDate=s=>{
   m[1]+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0'):null;
 };
 const amount=s=>{
- const v=String(s??'').normalize('NFKC').replace(/[,\s¥￥]/g,'').replace(/円$/,'');
- if(!v||v==='-')return 0;
+ const v=String(s??'').normalize('NFKC').replace(/[−–]/g,'-').replace(/[,\s¥￥]/g,'').replace(/円$/,'');
+ if(!v||v==='-'||v==='--')return 0;
  if(!/^-?\d+(?:\.0+)?$/.test(v))throw Error('金額を解釈できません：'+String(s).slice(0,30));
  const n=Number(v);if(!Number.isSafeInteger(n)||Math.abs(n)>100000000)throw Error('金額が大きすぎます');
  return n;
