@@ -72,7 +72,7 @@ function render(){
  <option value="both" ${(current?.person||'both')==='both'?'selected':''}>2人とも</option></select></label>
  <label>場所<input class="input" name="place" maxlength="200" placeholder="例：駅前" value="${esc(current?.place||'')}"></label>
  <label class="schedule-span">備考<textarea class="input" name="note" maxlength="1000" rows="3" placeholder="持ち物・予約情報・メモなど">${esc(current?.note||'')}</textarea></label>
- </div><div class="schedule-form-actions"><button type="submit" class="button" ${loading?'disabled':''}>${current?'変更を保存':'予定を保存'}</button>
+ </div><div class="schedule-form-actions"><button type="button" class="button" data-schedule-save ${loading?'disabled':''}>${loading?'保存中…':current?'変更を保存':'予定を保存'}</button>
  ${current?'<button type="button" class="button-secondary" data-schedule-cancel>編集をやめる</button>':''}</div>
  </form>
  </section>
@@ -156,17 +156,41 @@ function attach(snapshot){
  if(oldKey!==sharedKey)lastRefresh=0;
  void buildLinks().then(()=>callback('remote'));
 }
+function scheduleUUID(){
+ if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
+ const bytes=crypto.getRandomValues(new Uint8Array(16));
+ bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+ const h=[...bytes].map(n=>n.toString(16).padStart(2,'0'));
+ return h.slice(0,4).join('')+'-'+h.slice(4,6).join('')+'-'+h.slice(6,8).join('')+'-'+h.slice(8,10).join('')+'-'+h.slice(10).join('');
+}
+function scheduleError(text){
+ message=text;
+ callback('error');
+}
 async function saveFromForm(form){
- const f=new FormData(form),id=String(f.get('id')||'');
- const date=String(f.get('date')||''),time=String(f.get('time')||''),title=String(f.get('title')||'').trim(),person=String(f.get('person')||''),place=String(f.get('place')||'').trim(),note=String(f.get('note')||'').trim();
- if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!title||title.length>150||!['me','partner','both'].includes(person)){message='日付・予定内容・対象者を確認してください';callback();return}
- const existing=id?entries.find(r=>r.id===id&&!r.deleted):null;
- if(id&&!existing){message='編集対象が見つかりません';callback();return}
- const row={id:existing?.id||'sch-'+crypto.randomUUID(),version:crypto.randomUUID(),date,time,title,person,place,note,deleted:false};
- loading=true;
- try{entries=await vault().saveSchedule(row);editId='';message=sharedKey?'端末に保存しました。続いて「GitHubで共有を確定」を押し、GitHubで投稿を確定してください。':'この端末だけに保存しました。2人で共有するには設定で共有キーを登録してください。';await buildLinks()}
- catch(e){message='保存できませんでした：'+e.message}
- finally{loading=false;callback()}
+ if(loading)return;
+ try{
+  if(!form){scheduleError('入力フォームを確認できません。画面を更新してください。');return}
+  const f=new FormData(form),id=String(f.get('id')||'');
+  const date=String(f.get('date')||''),time=String(f.get('time')||''),title=String(f.get('title')||'').trim(),person=String(f.get('person')||''),place=String(f.get('place')||'').trim(),note=String(f.get('note')||'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(new Date(date+'T12:00:00').getTime())||
+     new Date(date+'T12:00:00').toLocaleDateString('sv-SE')!==date){scheduleError('正しい日付を入力してください。');return}
+  if(!title){scheduleError('予定内容を入力してください。');return}
+  if(title.length>150||place.length>200||note.length>1000){scheduleError('入力文字数を減らしてください。');return}
+  if(time&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)){scheduleError('時刻を確認してください。');return}
+  if(!['me','partner','both'].includes(person)){scheduleError('誰の予定かを選んでください。');return}
+  const existing=id?entries.find(r=>r.id===id&&!r.deleted):null;
+  if(id&&!existing){scheduleError('編集対象の予定が見つかりません。');return}
+  loading=true;message='予定を端末に保存しています…';
+  const button=form.querySelector('[data-schedule-save]');
+  if(button){button.disabled=true;button.textContent='保存中…'}
+  const row={id:existing?.id||'sch-'+scheduleUUID(),version:scheduleUUID(),date,time,title,person,place,note,deleted:false};
+  entries=await vault().saveSchedule(row);
+  editId='';
+  message=sharedKey?'端末への保存が完了しました。予定の「GitHubで共有を確定」から投稿すると、相手の端末にも反映されます。':'端末への保存が完了しました。相手にも共有するには設定画面で共有設定キーを登録してください。';
+  try{await buildLinks()}catch(e){message+=' 共有リンクの準備に失敗しました：'+(e?.message||String(e))}
+ }catch(e){message='保存に失敗しました：'+(e?.message||String(e))}
+ finally{loading=false;callback('saved')}
 }
 async function deleteEntry(id){
  const row=entries.find(r=>r.id===id&&!r.deleted);if(!row||!confirm('「'+row.title+'」を削除しますか？'))return;
@@ -178,6 +202,7 @@ async function deleteEntry(id){
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
+ if(b.hasAttribute('data-schedule-save')){e.preventDefault();void saveFromForm(b.closest('#schedule-form'));return}
  if(b.hasAttribute('data-schedule-edit')){editId=b.dataset.scheduleEdit;callback();return}
  if(b.hasAttribute('data-schedule-cancel')){editId='';callback();return}
  if(b.hasAttribute('data-schedule-delete')){void deleteEntry(b.dataset.scheduleDelete);return}
