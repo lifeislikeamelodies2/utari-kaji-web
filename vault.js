@@ -80,9 +80,11 @@ async function useMasterKey(secret){
 }
 async function syncMaster(){
  if(!key)throw Error('家事帖を開いてください');
- const local=await load(),secret=local.settings.sharedScheduleKey;
- if(!secret)return {status:'not-configured',snapshot:local};
+ const before=await load(),secret=before.settings.sharedScheduleKey;
+ if(!secret)return {status:'not-configured',snapshot:before};
  const remote=await fetchMaster(secret);
+ const local=await load(); // fetch中に完了記録が変更された場合、最新状態に合流する
+ if(local.settings.sharedScheduleKey!==secret)throw Error('共有設定キーが変更されました。再読み込みしてください');
  if((local.settings.masterRevision||0)>=remote.revision)return {status:'current',revision:remote.revision,snapshot:local};
  const updated=mergeMaster(local,remote,secret);
  await replaceAll(updated);
