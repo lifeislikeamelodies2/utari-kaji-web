@@ -127,20 +127,20 @@ async function saveSchedule(entry){
 }
 async function mergeScheduleEvents(events){
  return lockedWrite(async()=>{
-  const d=await load(),map=new Map((d.schedules||[]).map(r=>[r.id,r]));let changed=false;
+  const d=await load(),map=new Map((d.schedules||[]).map(r=>[r.id,r]));
   for(const event of events){
    if(!event||!event.entry||!event.entry.id)continue;
    const row=event.entry;try{validateSchedule(row)}catch{continue}
    const previous=map.get(row.id);
    if(previous?.status==='pending'&&previous.version!==row.version)continue;
    if(previous?.status==='local'&&previous.version!==row.version)continue;
-   if(row.deleted){if(map.has(row.id)){map.delete(row.id);changed=true}}
+   if(row.deleted){if(map.has(row.id))map.delete(row.id)}
    else{
     const incoming={...copy(row),status:'synced'};
-    if(JSON.stringify(previous)!==JSON.stringify(incoming)){map.set(row.id,incoming);changed=true}
+    if(JSON.stringify(previous)!==JSON.stringify(incoming))map.set(row.id,incoming)
    }
   }
-  if(changed){d.schedules=[...map.values()];await writeDirect(d)}
+  const next=[...map.values()];if(JSON.stringify(next)!==JSON.stringify(d.schedules||[])){d.schedules=next;await writeDirect(d)}
   return copy(d.schedules||[])
  })
 }
