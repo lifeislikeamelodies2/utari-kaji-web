@@ -146,7 +146,7 @@ function render(){
  </div>
  <section class="panel ledger-panel"><div class="ledger-section-heading"><div><h2>PayPayのCSVを取り込む</h2>
  <p>PayPay公式の取引履歴CSVに対応。先に家計対象・個人用を選別します。</p></div></div>
- <div class="ledger-csv-actions"><label for="ledger-csv" class="button-secondary ledger-file-label">CSVファイルを選択</label>
+ <div class="ledger-csv-actions"><button type="button" class="button-secondary ledger-file-label" data-ledger-file>CSVファイルを選択</button>
  <input type="file" id="ledger-csv" accept=".csv,text/csv" hidden><span>PayPayの認証情報は不要。ファイルは端末内だけで解析します。</span></div>
  </section>
  ${previewHTML()}
@@ -198,6 +198,7 @@ function fillEdit(id){
 }
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
+ if(b.hasAttribute('data-ledger-file')){document.querySelector('#ledger-csv')?.click();return}
  if(b.hasAttribute('data-ledger-select')){
   const all=b.dataset.ledgerSelect==='all';
   preview.forEach(r=>{if(r.eligible&&!r.duplicate)r.included=all});redraw();return;
