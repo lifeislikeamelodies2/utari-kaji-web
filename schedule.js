@@ -190,5 +190,5 @@ document.addEventListener('change',e=>{
 document.addEventListener('submit',e=>{
  if(e.target?.id==='schedule-form'){e.preventDefault();void saveFromForm(e.target)}
 });
-window.HOUSE_SCHEDULE={init,attach,refresh,render,homeHTML,upcoming,TEST:{decryptIssue,encryptedIssue}};
+window.HOUSE_SCHEDULE={init,attach,refresh,render,homeHTML,upcoming};
 })();
