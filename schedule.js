@@ -73,7 +73,7 @@ function render(){
  <label>場所<input class="input" name="place" maxlength="200" placeholder="例：駅前" value="${esc(current?.place||'')}"></label>
  <label class="schedule-span">備考<textarea class="input" name="note" maxlength="1000" rows="3" placeholder="持ち物・予約情報・メモなど">${esc(current?.note||'')}</textarea></label>
  </div><div class="schedule-form-actions"><button type="button" class="button" data-schedule-save ${loading?'disabled':''}>${loading?'保存中…':current?'変更を保存':'予定を保存'}</button>
- ${current?'<button type="button" class="button-secondary" data-schedule-cancel>編集をやめる</button>':''}</div>
+ ${current?'<button type="button" class="button-secondary" data-schedule-cancel>編集をやめる</button>':''}</div><p id="schedule-form-feedback" class="schedule-form-feedback" role="status" aria-live="polite"></p>
  </form>
  </section>
  <section class="panel schedule-list-panel"><div class="schedule-list-head"><h2>登録済みの予定（${rows.length}件）</h2><label><input type="checkbox" data-schedule-old ${showOld?'checked':''}>過去の予定も表示</label></div>
@@ -165,6 +165,8 @@ function scheduleUUID(){
 }
 function scheduleError(text){
  message=text;
+ const el=document.querySelector('#schedule-form-feedback');
+ if(el){el.textContent=text;return}
  callback('error');
 }
 async function saveFromForm(form){
@@ -182,6 +184,8 @@ async function saveFromForm(form){
   const existing=id?entries.find(r=>r.id===id&&!r.deleted):null;
   if(id&&!existing){scheduleError('編集対象の予定が見つかりません。');return}
   loading=true;message='予定を端末に保存しています…';
+  const feedback=form.querySelector('#schedule-form-feedback');
+  if(feedback)feedback.textContent='保存中…';
   const button=form.querySelector('[data-schedule-save]');
   if(button){button.disabled=true;button.textContent='保存中…'}
   const row={id:existing?.id||'sch-'+scheduleUUID(),version:scheduleUUID(),date,time,title,person,place,note,deleted:false};
