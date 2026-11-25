@@ -34,5 +34,60 @@ async function importEncryptedBackup(v,pass){v=parse(JSON.stringify(v));const te
 function exportEncryptedBackup(){if(!key)throw Error('施錠中です');return localStorage.getItem(STORE)}
 const hasVault=()=>!!localStorage.getItem(STORE);
 const logout=()=>{key=null};
-window.LOCAL_VAULT={connect,restore:()=>'',logout,load,applyChanges,replaceAll,importEncryptedBackup,exportEncryptedBackup,isConnected:()=>!!key,hasVault,getUser:()=> 'この端末'};
+
+/* 暗号化された共通予定をGitHub Pagesから受信する。共有キーはローカル保管庫内だけに保存。 */
+async function fetchMaster(secret){
+ const k=String(secret||'').trim(),rawKey=from64(k);
+ if(rawKey.length!==32)throw Error('共有設定キーの形式が正しくありません');
+ const response=await fetch('./master-schedule.json?ts='+Date.now(),{cache:'no-store',credentials:'omit'});
+ if(!response.ok)throw Error('共通スケジュールを取得できません (HTTP '+response.status+')');
+ const e=await response.json();
+ if(e.type!=='futari-kaji-master-envelope-v1'||e.codec!=='gzip'||!Number.isInteger(e.revision)||e.revision<1||e.revision>999999||!e.iv||!e.ciphertext)throw Error('配信データの形式が正しくありません');
+ let bytes;
+ try{
+  const cryptoKey=await crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM'},false,['decrypt']);
+  bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv:from64(e.iv),additionalData:T.encode('futari-kaji-master-v1|'+e.revision)},cryptoKey,from64(e.ciphertext));
+ }catch{throw Error('共有設定キーが異なるか、配信データが破損しています')}
+ if(typeof DecompressionStream==='undefined')throw Error('このブラウザは共通設定の展開に対応していません');
+ let decoded;
+ try{
+  const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const payload=await new Response(stream).arrayBuffer();
+  decoded=JSON.parse(D.decode(payload));
+ }catch{throw Error('共通スケジュールを展開できませんでした')}
+ if(decoded.type!=='futari-kaji-master-schedule-v1'||decoded.revision!==e.revision)throw Error('更新番号が一致しません');
+ valid(decoded);
+ if(decoded.tasks.some(t=>!t||typeof t.id!=='string'||typeof t.title!=='string'||!['daily','weekly','once'].includes(t.frequency)||!['me','partner','shared'].includes(t.person)))throw Error('予定の形式が正しくありません');
+ if(new Set(decoded.tasks.map(t=>t.id)).size!==decoded.tasks.length)throw Error('予定IDが重複しています');
+ return decoded;
+}
+function mergeMaster(local,master,secret){
+ const managed=new Set(Array.isArray(local.settings.masterManagedIds)?local.settings.masterManagedIds:[]);
+ const ids=new Set(master.tasks.map(t=>t.id));
+ const extra=local.tasks.filter(t=>!ids.has(t.id)&&!managed.has(t.id));
+ const settings={...local.settings,...master.settings,
+  sharedScheduleKey:secret,
+  masterRevision:master.revision,
+  masterManagedIds:master.tasks.map(t=>t.id)};
+ return {tasks:[...copy(master.tasks),...extra],completions:local.completions,settings};
+}
+async function useMasterKey(secret){
+ if(!key)throw Error('家事帖を開いてください');
+ const k=String(secret||'').trim(),remote=await fetchMaster(k);
+ const local=await load(),updated=mergeMaster(local,remote,k);
+ await replaceAll(updated);
+ return {status:'updated',revision:remote.revision,snapshot:copy(updated)};
+}
+async function syncMaster(){
+ if(!key)throw Error('家事帖を開いてください');
+ const local=await load(),secret=local.settings.sharedScheduleKey;
+ if(!secret)return {status:'not-configured',snapshot:local};
+ const remote=await fetchMaster(secret);
+ if((local.settings.masterRevision||0)>=remote.revision)return {status:'current',revision:remote.revision,snapshot:local};
+ const updated=mergeMaster(local,remote,secret);
+ await replaceAll(updated);
+ return {status:'updated',revision:remote.revision,snapshot:copy(updated)};
+}
+
+window.LOCAL_VAULT={connect,restore:()=>'',logout,load,applyChanges,replaceAll,importEncryptedBackup,exportEncryptedBackup,isConnected:()=>!!key,hasVault,useMasterKey,syncMaster,getUser:()=> 'この端末'};
 })();
