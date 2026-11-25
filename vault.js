@@ -31,7 +31,7 @@ case 'overrideSet':if(/^\d{4}-\d{2}-\d{2}$/.test(o.date)){v.settings.garbageOver
 case 'overrideDelete':if(v.settings.garbageOverrides)delete v.settings.garbageOverrides[o.date];break
 }}return v}
 async function writeDirect(data){if(!key)throw Error('施錠中です');valid(data);const salt=from64(current().salt);write(await encrypt(data,key,salt));return copy(data)}
-async function replaceAll(data){return lockedWrite(()=>writeDirect(data))}
+async function replaceAll(data){return lockedWrite(async()=>{if(!Array.isArray(data.ledger)){const previous=await load();data={...data,ledger:previous.ledger||[]}}return writeDirect(data)})}
 async function applyChanges(changes){return lockedWrite(async()=>writeDirect(ops(await load(),changes)))}
 const LEDGER_CATEGORIES=new Set(['家賃','電気代','ガス代','水道代','通信費','食費','日用品','外食','交通費','医療費','娯楽費','その他']);
 function ledgerValid(x){
