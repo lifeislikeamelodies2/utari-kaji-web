@@ -147,9 +147,12 @@ async function refresh(force=false){
 }
 function init(onChange){callback=onChange}
 function attach(snapshot){
- entries=Array.isArray(snapshot?.schedules)?snapshot.schedules.slice():[];
- labels={meName:snapshot.settings?.meName||'私',partnerName:snapshot.settings?.partnerName||'相手'};
- const oldKey=sharedKey;sharedKey=snapshot.settings?.sharedScheduleKey||'';
+ const nextEntries=Array.isArray(snapshot?.schedules)?snapshot.schedules.slice():[];
+ const nextLabels={meName:snapshot.settings?.meName||'私',partnerName:snapshot.settings?.partnerName||'相手'};
+ const nextKey=snapshot.settings?.sharedScheduleKey||'';
+ if(JSON.stringify(entries)===JSON.stringify(nextEntries)&&JSON.stringify(labels)===JSON.stringify(nextLabels)&&sharedKey===nextKey)return;
+ const oldKey=sharedKey;
+ entries=nextEntries;labels=nextLabels;sharedKey=nextKey;
  if(oldKey!==sharedKey)lastRefresh=0;
  void buildLinks().then(()=>callback('remote'));
 }
