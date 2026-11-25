@@ -124,3 +124,6 @@
 @media(max-width:980px){.ledger-layout{grid-template-columns:1fr}}
 @media(max-width:760px){.ledger-summary{grid-template-columns:1fr 1fr}.ledger-metric:first-child{grid-column:span 2}.ledger-fixed-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:470px){.ledger-panel{padding:14px}.ledger-fixed-card{padding:13px}.ledger-preview-row{padding:10px}.ledger-metric{padding:14px}.ledger-category-row>div:first-child{font-size:11px}}
+
+.ledger-history-category{font-size:11px;max-width:150px;padding:6px 8px;min-height:32px}
+.ledger-history-main .ledger-history-category{margin-top:3px}
