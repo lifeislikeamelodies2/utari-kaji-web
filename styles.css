@@ -172,3 +172,5 @@
 
 @media(max-width:740px){.mobile-nav .nav-item{font-size:9px;gap:3px;padding:8px 0}.mobile-nav .nav-item .ico{width:18px;height:18px}.mobile-nav{padding-left:4px;padding-right:4px}}
 @media(max-width:375px){.mobile-nav .nav-item{font-size:8px}.mobile-nav .nav-item .ico{width:17px;height:17px}}
+
+.schedule-form-feedback{font-size:12px;line-height:1.7;margin:10px 0 0;color:#94603c;min-height:1.2em}
