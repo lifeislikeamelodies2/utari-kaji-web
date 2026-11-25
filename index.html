@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#264a42">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
   <meta name="description" content="2人の暮らしの家事を、無理なく分け合うための週間ToDoアプリ。">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=20261125-finance-v2">
+  <link rel="stylesheet" href="styles.css?v=20261125-schedule-v1">
   <title>ふたりの家事帖</title>
 </head>
 <body>
@@ -66,8 +66,9 @@
   </div>
   <script src="data.js"></script>
   <script src="trash.js"></script>
-  <script src="vault.js?v=20261125-finance-v2"></script>
+  <script src="vault.js?v=20261125-schedule-v1"></script>
   <script src="ledger.js?v=20261125-finance-v2"></script>
-  <script src="app.js?v=20261125-finance-v2"></script>
+  <script src="schedule.js?v=20261125-schedule-v1"></script>
+  <script src="app.js?v=20261125-schedule-v1"></script>
 </body>
 </html>
