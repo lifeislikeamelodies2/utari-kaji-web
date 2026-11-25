@@ -69,7 +69,7 @@ async function loadRemote(){
     window.HOUSE_LEDGER.attach(remote);
     localBaseline=clone(state);ready=true;
     syncStatus('端末内に保存','ok');
-    render();
+    if(view!=='ledger')render(); // CSV確認中の画面や手入力欄を定期更新で消さない
   }catch(err){
     syncStatus('読込失敗','error');
     if(!ready)document.querySelector('#screen').innerHTML=`<div class="panel" style="margin:22px"><h2>共有データに読込失敗</h2><p>${esc(err.message)}</p><button class="button" onclick="location.reload()">再読み込み</button></div>`;
