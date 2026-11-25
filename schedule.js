@@ -141,8 +141,8 @@ async function refresh(force=false){
   const events=await fetchIssues();
   entries=await vault().mergeScheduleEvents(events);
   lastRefresh=Date.now();message=force?'共有予定を確認しました':'';
-  await buildLinks();callback();
- }catch(e){message='共有予定を取得できません：'+e.message;callback()}
+  await buildLinks();callback('remote');
+ }catch(e){message='共有予定を取得できません：'+e.message;callback('remote')}
  finally{refreshing=false}
 }
 function init(onChange){callback=onChange}
@@ -151,7 +151,7 @@ function attach(snapshot){
  labels={meName:snapshot.settings?.meName||'私',partnerName:snapshot.settings?.partnerName||'相手'};
  const oldKey=sharedKey;sharedKey=snapshot.settings?.sharedScheduleKey||'';
  if(oldKey!==sharedKey)lastRefresh=0;
- void buildLinks().then(callback);
+ void buildLinks().then(()=>callback('remote'));
 }
 async function saveFromForm(form){
  const f=new FormData(form),id=String(f.get('id')||'');
