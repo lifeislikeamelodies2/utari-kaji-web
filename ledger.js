@@ -108,7 +108,7 @@ function previewHTML(){
    ${r.eligible?`<select class="input ledger-cat" data-ledger-preview-cat="${i}" aria-label="${esc(r.title)}の費目">${options(r.category)}</select>`:''}</div></div>`).join('')}
  </div>
  <div class="ledger-actions"><button type="button" class="button" data-ledger-import-confirm ${loading?'disabled':''}>選択内容で家計簿へ反映</button><button type="button" class="button-secondary" data-ledger-preview-cancel>キャンセル</button></div>
- <p class="help">選択を外した支払いも「除外」として暗号化保存され、あとから家計対象に変更できます。チャージや送金は集計対象から自動除外します。</p>
+ <p class="help">選択を外した支払いは保存されません。チャージや送金も自動除外されます。後日追加する場合は同じCSVを読み込み直せます。</p>
  </section>`;
 }
 function render(){
@@ -178,13 +178,13 @@ async function openCSV(file){
  }catch(e){preview=[];setMessage('CSVを読み込めません：'+e.message)}
 }
 async function importConfirm(){
- const list=preview.filter(x=>x.eligible&&!x.duplicate);
- if(!list.length){setMessage('新しい支払い明細がありません');return}
+ const list=preview.filter(x=>x.eligible&&!x.duplicate&&x.included);
+ if(!list.length){setMessage('家計に含める新しい支払い明細を選択してください');return}
  const ops=list.map(x=>({kind:'upsert',entry:{id:x.id,date:x.date,title:x.title,amount:x.amount,category:x.category,
   source:'paypay',included:x.included,reference:x.reference,memo:'',kind:x.kind}}));
  try{
   loading=true;entries=await vault().applyLedgerOps(ops);preview=[];
-  note='PayPayの支払い'+list.length+'件を登録しました。家計対象外の明細は合計に含まれません。';
+  note='PayPayの支払い'+list.length+'件を登録しました。チェックを外した個人用の明細は保存していません。';
  }catch(e){note='取り込みに失敗しました：'+e.message}
  finally{loading=false;redraw()}
 }
