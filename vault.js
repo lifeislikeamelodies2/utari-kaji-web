@@ -3,11 +3,13 @@
 'use strict';
 const STORE='futari-kaji-local-vault-v1',COUNT=600000,T=new TextEncoder(),D=new TextDecoder();
 let key=null;
+let writeQueue=Promise.resolve();
+function lockedWrite(fn){const next=writeQueue.then(fn,fn);writeQueue=next.then(()=>{},()=>{});return next}
 const copy=x=>structuredClone(x);
-const empty=()=>({tasks:[],completions:{},settings:{meName:'私',partnerName:'相手',locality:'',fridayAnchor:'',fridayType:'',garbageOverrides:{},garbageRules:{}}});
+const empty=()=>({tasks:[],completions:{},ledger:[],settings:{meName:'私',partnerName:'相手',locality:'',fridayAnchor:'',fridayType:'',garbageOverrides:{},garbageRules:{}}});
 const to64=arr=>{let s='';for(const b of arr)s+=String.fromCharCode(b);return btoa(s)};
 const from64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-function valid(x){if(!x||!Array.isArray(x.tasks)||!x.completions||typeof x.completions!=='object'||!x.settings||typeof x.settings!=='object')throw Error('家事データの形式が正しくありません');if(x.tasks.length>5000||JSON.stringify(x).length>3000000)throw Error('データが大きすぎます');return x}
+function valid(x){if(!x||!Array.isArray(x.tasks)||!x.completions||typeof x.completions!=='object'||!x.settings||typeof x.settings!=='object')throw Error('家事データの形式が正しくありません');if(x.tasks.length>5000|| (x.ledger&&(!Array.isArray(x.ledger)||x.ledger.length>10000)) ||JSON.stringify(x).length>3000000)throw Error('データが大きすぎます');return x}
 function parse(s){let v;try{v=JSON.parse(s)}catch{throw Error('暗号化データを読み取れません')};if(v.type!=='futari-kaji-encrypted-v1'||v.version!==1||v.iterations!==COUNT||!v.salt||!v.iv||!v.ciphertext)throw Error('暗号化データの形式が不正です');return v}
 function current(){const s=localStorage.getItem(STORE);if(!s)throw Error('この端末の保存データが見つかりません');return parse(s)}
 function write(v){try{localStorage.setItem(STORE,JSON.stringify(v))}catch{throw Error('端末に保存できません。ブラウザの保存設定を確認してください')}}
@@ -28,8 +30,29 @@ case 'settingSet':if(settings.includes(o.key))v.settings[o.key]=o.value;break;
 case 'overrideSet':if(/^\d{4}-\d{2}-\d{2}$/.test(o.date)){v.settings.garbageOverrides ||= {};v.settings.garbageOverrides[o.date]=o.value}break;
 case 'overrideDelete':if(v.settings.garbageOverrides)delete v.settings.garbageOverrides[o.date];break
 }}return v}
-async function replaceAll(data){if(!key)throw Error('施錠中です');valid(data);const salt=from64(current().salt);write(await encrypt(data,key,salt));return copy(data)}
-async function applyChanges(changes){const updated=ops(await load(),changes);return replaceAll(updated)}
+async function writeDirect(data){if(!key)throw Error('施錠中です');valid(data);const salt=from64(current().salt);write(await encrypt(data,key,salt));return copy(data)}
+async function replaceAll(data){return lockedWrite(()=>writeDirect(data))}
+async function applyChanges(changes){return lockedWrite(async()=>writeDirect(ops(await load(),changes)))}
+const LEDGER_CATEGORIES=new Set(['家賃','電気代','ガス代','水道代','通信費','食費','日用品','外食','交通費','医療費','娯楽費','その他']);
+function ledgerValid(x){
+ if(!x||typeof x.id!=='string'||x.id.length>250||!x.id||!/^\d{4}-\d{2}-\d{2}$/.test(x.date)||typeof x.title!=='string'||x.title.length>160||!x.title.trim()||!Number.isSafeInteger(x.amount)||Math.abs(x.amount)>100000000||!LEDGER_CATEGORIES.has(x.category)||typeof x.included!=='boolean'||!['paypay','manual'].includes(x.source))throw Error('家計簿の明細形式が正しくありません');
+ if(x.memo!==undefined&&(typeof x.memo!=='string'||x.memo.length>500))throw Error('備考が長すぎます');
+ return x;
+}
+async function applyLedgerOps(changes){
+ return lockedWrite(async()=>{
+  const data=await load(),items=new Map((data.ledger||[]).map(x=>[x.id,x]));
+  for(const c of changes){
+   if(c.kind==='upsert'){ledgerValid(c.entry);items.set(c.entry.id,copy(c.entry))}
+   else if(c.kind==='delete'&&typeof c.id==='string')items.delete(c.id);
+   else throw Error('不明な家計簿操作です');
+  }
+  data.ledger=[...items.values()].sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));
+  await writeDirect(data);return copy(data.ledger)
+ });
+}
+async function listLedger(){const data=await load();return copy(data.ledger||[])}
+
 async function importEncryptedBackup(v,pass){v=parse(JSON.stringify(v));const temp=await derive(String(pass||''),from64(v.salt)),data=await decrypt(v,temp);return replaceAll(data)}
 function exportEncryptedBackup(){if(!key)throw Error('施錠中です');return localStorage.getItem(STORE)}
 const hasVault=()=>!!localStorage.getItem(STORE);
@@ -69,27 +92,20 @@ function mergeMaster(local,master,secret){
   sharedScheduleKey:secret,
   masterRevision:master.revision,
   masterManagedIds:master.tasks.map(t=>t.id)};
- return {tasks:[...copy(master.tasks),...extra],completions:local.completions,settings};
+ return {...copy(local),tasks:[...copy(master.tasks),...extra],completions:local.completions,settings};
 }
 async function useMasterKey(secret){
  if(!key)throw Error('家事帖を開いてください');
  const k=String(secret||'').trim(),remote=await fetchMaster(k);
- const local=await load(),updated=mergeMaster(local,remote,k);
- await replaceAll(updated);
- return {status:'updated',revision:remote.revision,snapshot:copy(updated)};
+ return lockedWrite(async()=>{const local=await load(),updated=mergeMaster(local,remote,k);await writeDirect(updated);return {status:'updated',revision:remote.revision,snapshot:copy(updated)}});
 }
 async function syncMaster(){
  if(!key)throw Error('家事帖を開いてください');
  const before=await load(),secret=before.settings.sharedScheduleKey;
  if(!secret)return {status:'not-configured',snapshot:before};
  const remote=await fetchMaster(secret);
- const local=await load(); // fetch中に完了記録が変更された場合、最新状態に合流する
- if(local.settings.sharedScheduleKey!==secret)throw Error('共有設定キーが変更されました。再読み込みしてください');
- if((local.settings.masterRevision||0)>=remote.revision)return {status:'current',revision:remote.revision,snapshot:local};
- const updated=mergeMaster(local,remote,secret);
- await replaceAll(updated);
- return {status:'updated',revision:remote.revision,snapshot:copy(updated)};
+ return lockedWrite(async()=>{const local=await load();if(local.settings.sharedScheduleKey!==secret)throw Error('共有設定キーが変更されました。再読み込みしてください');if((local.settings.masterRevision||0)>=remote.revision)return {status:'current',revision:remote.revision,snapshot:local};const updated=mergeMaster(local,remote,secret);await writeDirect(updated);return {status:'updated',revision:remote.revision,snapshot:copy(updated)}});
 }
 
-window.LOCAL_VAULT={connect,restore:()=>'',logout,load,applyChanges,replaceAll,importEncryptedBackup,exportEncryptedBackup,isConnected:()=>!!key,hasVault,useMasterKey,syncMaster,getUser:()=> 'この端末'};
+window.LOCAL_VAULT={connect,restore:()=>'',logout,load,applyChanges,replaceAll,importEncryptedBackup,exportEncryptedBackup,applyLedgerOps,listLedger,isConnected:()=>!!key,hasVault,useMasterKey,syncMaster,getUser:()=> 'この端末'};
 })();
