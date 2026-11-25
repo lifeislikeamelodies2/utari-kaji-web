@@ -59,7 +59,7 @@ async function flushChanges(){
   await loadRemote();
 }
 async function loadRemote(){
-  if(busy||pending.length||refreshing||!remoteStore.isConnected())return;
+  if(busy||pending.length||refreshing||masterChecking||!remoteStore.isConnected())return;
   refreshing=true;
   const token=refreshToken;
   try{
@@ -234,7 +234,7 @@ document.addEventListener('click',e=>{
  if(b.hasAttribute('data-remove-override')){delete state.settings.garbageOverrides[b.dataset.removeOverride];save();render();toast('例外設定を削除しました');return}
  if(b.hasAttribute('data-export')){exportData();return}
  if(b.hasAttribute('data-import')){document.querySelector('#import-file')?.click();return}
- if(b.hasAttribute('data-master-refresh')){void checkMaster(true);return}
+ if(b.hasAttribute('data-master-refresh')){if(!state.settings.sharedScheduleKey){toast('最初に共有設定キーを登録してください');return}void checkMaster(true);return}
 });
 document.addEventListener('submit',async e=>{
  const form=e.target;if(!(form instanceof HTMLFormElement))return;e.preventDefault();const f=new FormData(form);
