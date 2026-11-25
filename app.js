@@ -80,7 +80,61 @@ function recordKey(task,d){return `${key(d)}|${task.id}`}
 function completion(task,d){return state.completions[recordKey(task,d)]}
 function weekDates(start){return Array.from({length:7},(_,i)=>shift(start,i))}
 function countFor(d){const list=tasksForDate(d);const done=list.filter(t=>completion(t,d)).length;return {done,total:list.length};}
-function weekCounts(start,onlyShared=false){let done=0,total=0;for(const d of weekDates(start)){const tasks=tasksForDate(d).filter(t=>!onlyShared||t.person==='shared');total+=tasks.length;done+=tasks.filter(t=>completion(t,d)).length}return {done,total}}
+function weekCounts(start,onlyShared=false){let done=0,total=0;for(const d of weekDates(start)){const tasks=tasksForDate(d).filter(t=>!onlyShared||t.person==='shared');total+=tasks.length;done+=tasks.filter(t=>completion(t,d)).length}for(const p of budgetWindowsForWeek(start)){total++;if(state.completions[budgetRecordKey(p)])done++}return {done,total}}
+
+/* 月末・月初それぞれ1回の家計簿整理（データは既存の暗号化保管庫に保存） */
+function budgetWindow(y,m,kind){
+ const last=new Date(y,m+1,0),first=kind==='first';
+ return {id:'budget-'+y+'-'+String(m+1).padStart(2,'0')+'-'+kind,kind,year:y,month:m+1,
+  start:new Date(y,m,first?1:last.getDate()-6),end:new Date(y,m,first?7:last.getDate()),
+  label:first?'月初・第1週':'月末・最終週'};
+}
+function budgetWindowsForDate(d){
+ const y=d.getFullYear(),m=d.getMonth(),last=new Date(y,m+1,0).getDate(),out=[];
+ if(d.getDate()<=7)out.push(budgetWindow(y,m,'first'));
+ if(d.getDate()>=last-6)out.push(budgetWindow(y,m,'last'));
+ return out;
+}
+function budgetWindowsForWeek(start){
+ const found=new Map();
+ for(const d of weekDates(start))for(const p of budgetWindowsForDate(d))found.set(p.id,p);
+ return [...found.values()].sort((a,b)=>a.start-b.start||a.id.localeCompare(b.id));
+}
+function budgetFromId(id){
+ const m=/^budget-(\d{4})-(\d{2})-(first|last)$/.exec(String(id||''));
+ if(!m)return null;const y=Number(m[1]),month=Number(m[2])-1;
+ return y>=2020&&y<=2100&&month>=0&&month<=11?budgetWindow(y,month,m[3]):null;
+}
+const budgetSteps={
+ last:['今月のレシート・領収書・購入履歴を集める','現金・口座・カード・電子決済の利用明細を照合する','未記帳の支出と未確定の引き落としを確認する','今月の予算と実際の支出の差額を確認する','未精算分や翌月へ持ち越す支払いを整理する'],
+ first:['前月分の支出を確定し、項目別の合計を記録する','口座残高・カード引き落とし日・支払予定を確認する','固定費・変動費と予算との差を振り返る','今月の生活費・貯蓄・特別費の予算を確認する','2人で必要な精算や負担分を確認し、記録を保存する']
+};
+const budgetRecordKey=p=>'monthly-budget|'+p.id;
+const budgetStepRecordKey=(p,i)=>'monthly-budget-step|'+p.id+'|'+i;
+function budgetCard(p){
+ const rec=state.completions[budgetRecordKey(p)],steps=budgetSteps[p.kind];
+ const count=steps.filter((_,i)=>!!state.completions[budgetStepRecordKey(p,i)]).length;
+ return `<section class="budget-card" aria-label="必須タスク 家計簿の整理">
+  <div class="budget-card-head"><div><div class="budget-eyebrow">必須タスク・${esc(p.label)}</div><h3>家計簿の整理</h3>
+  <p>${esc(p.year+'年'+p.month+'月')} ／ ${esc(dateLabel(p.start))}〜${esc(dateLabel(p.end))}</p></div>
+  <span class="budget-state ${rec?'complete':''}">${rec?'完了済み':'未完了'}</span></div>
+  <p class="budget-description">${p.kind==='last'?'月末：今月の支出・未精算を確認して、翌月へ引き継ぐ準備をします。':'月初：前月分を締めて、今月の支払いと予算を整えます。'}</p>
+  <div class="budget-progress">対応内容 ${count} / ${steps.length} 件</div>
+  <div class="budget-checklist">${steps.map((label,i)=>{const done=!!state.completions[budgetStepRecordKey(p,i)];return `<button type="button" class="budget-step ${done?'is-done':''}" data-budget-step="${esc(p.id)}" data-budget-index="${i}" aria-pressed="${done?'true':'false'}"><span class="budget-step-box">${done?'✓':''}</span><span>${esc(label)}</span></button>`}).join('')}</div>
+  <div class="budget-footer"><span>${rec?'実施：'+esc(rec.by||'未記録'):'期間内に1回、完了を記録してください'}</span>
+  <button type="button" class="button-secondary budget-main-button" data-budget-complete="${esc(p.id)}">${rec?'完了を取り消す':'整理を完了として記録'}</button></div></section>`;
+}
+function budgetNotices(periods){
+ if(!periods.length)return '';
+ return `<section class="budget-section" aria-label="月末・月初の必須タスク"><div class="section-head"><div><h2 class="section-title">月末・月初の必須タスク</h2>
+ <p class="section-sub">毎月最終7日間と翌月最初の7日間に「家計簿の整理」を各1回。アプリ内でお知らせします。</p></div></div>
+ <div class="budget-cards">${periods.map(budgetCard).join('')}</div></section>`;
+}
+function budgetSelectPerformer(p){
+ const opts=[[state.settings.meName,state.settings.meName],[state.settings.partnerName,state.settings.partnerName],['2人で','2人'],['実施者を記録しない','未記録']];
+ modal('家計簿の整理：実施者を選択',`<div class="modal-body">${esc(p.year+'年'+p.month+'月 '+p.label)}の整理を完了として記録します。</div><div class="performer-options">${opts.map(([label,val])=>`<button type="button" class="performer-button" data-budget-person="${esc(val)}" data-budget-id="${esc(p.id)}">${esc(label)}</button>`).join('')}</div>`);
+}
+
 function navHTML(){const nav=[['home','home','ホーム'],['week','calendar','週間'],['tasks','list','家事の管理'],['garbage','trash','ごみ'],['settings','settings','設定']];const buttons=nav.map(([v,i,l])=>`<button class="nav-item ${view===v?'active':''}" data-nav="${v}" aria-current="${view===v?'page':'false'}">${icon(i)}<span>${l}</span></button>`).join('');document.querySelector('#desktop-nav').innerHTML=buttons;document.querySelector('#mobile-nav').innerHTML=buttons;}
 function header(eyebrow,title,desc){return `<div class="eyebrow">${esc(eyebrow)}</div><h1 class="page-title">${esc(title)}</h1><p class="page-description">${desc}</p>`}
 function taskHTML(task,d){const rec=completion(task,d),done=!!rec,shared=task.person==='shared';const tag=shared?'shared':task.person;const performed=rec?`<span class="pill ${tag}">${shared?'実施：'+esc(rec.by||'未記録'):'完了'}</span>`:`<span class="pill ${tag}">${esc(personLabel(task.person))}</span>`;
@@ -91,10 +145,11 @@ function nextGarbage(){for(let i=0;i<8;i++){const d=shift(today(),i);const g=gar
 function homeHTML(){const now=today(),daily=countFor(now),weekly=weekCounts(weekStart(now),true),upcoming=nextGarbage();
 return header('HOME PLANNER',`${now.getMonth()+1}月${now.getDate()}日、今日の家事。`,'決めている担当はそのままに、掃除はできる方から。<br>今日の「やること」をひと目で確認できます。')+`
 <div class="hero"><div class="hero-main"><div class="overline">OUR LITTLE ROUTINE</div><h2>ふたりで整える、<br>心地よい暮らし。</h2><p>無理に半分ずつではなく、それぞれができることを。終わった家事はチェックして記録しましょう。</p><button class="hero-button" data-nav="week">今週の予定を見る ${icon('arrow')}</button></div><div class="panel progress-card"><div><h3>今日の達成状況</h3><p>あと ${Math.max(daily.total-daily.done,0)} 件</p><div class="progress-number">${daily.done}<small>/ ${daily.total} 件</small></div></div><div class="progress-ring" style="--p:${daily.total?Math.round(daily.done/daily.total*100):100}%"><span>${daily.total?Math.round(daily.done/daily.total*100):100}%</span></div></div></div>
+${budgetNotices(budgetWindowsForDate(now))}
 <div class="summary-strip"><div class="summary-box"><span class="mini-icon">${icon('check')}</span><div><small>今週の共同掃除</small><b>${weekly.done} / ${weekly.total} 件</b></div></div><div class="summary-box"><span class="mini-icon peach">${icon('trash')}</span><div><small>次のごみ収集</small><b style="font-size:12px">${upcoming?esc(dateLabel(upcoming.date)):'予定なし'}</b></div></div></div>
 <div class="content-grid"><div><div class="section-head"><div><h2 class="section-title">今日の固定担当</h2><p class="section-sub">担当が決まっている毎日の家事とごみ準備・搬出</p></div></div><div class="panel task-panel">${tasksForDate(now).filter(t=>t.person!=='shared').map(t=>taskHTML(t,now)).join('')||'<div class="empty-state">タスクはありません</div>'}</div><div class="section-head"><div><h2 class="section-title">今日の共同タスク</h2><p class="section-sub">掃除・洗濯はどちらかできる方が進めましょう</p></div></div><div class="panel task-panel">${groupTasks(now,'shared')}</div></div><div><div class="section-head"><div><h2 class="section-title">ごみ出しメモ</h2><p class="section-sub">${esc(state.settings.locality||'ごみ収集地域')}</p></div></div><div class="notice"><div class="notice-title">${icon('clock')} 収集日は朝8:30まで</div><p>前の晩に屋内で分別・準備し、翌朝に指定の集積場所へ。準備から搬出まで${esc(state.settings.partnerName)}の固定担当です。</p></div><div class="panel small-list" style="margin-top:12px"><div class="small-list-title">今週のやり方</div><div class="small-item"><strong>固定担当：</strong>料理・ペット・買い物は${esc(state.settings.meName)}、食器洗い・収納・ごみは${esc(state.settings.partnerName)}</div><div class="small-item"><strong>掃除：</strong>曜日ごとに内容を決め、作業する人はその日に選択</div><div class="small-item"><strong>予定変更：</strong>実施できなかった家事は日曜に確認、必要ならタスク自体を編集</div></div></div></div>`;
 }
-function weekHTML(){const counts=weekCounts(currentWeek);return header('WEEKLY ROUTINE','1週間の家事','曜日ごとの掃除タスクを確認できます。チェック済みの家事は実施者も記録できます。')+`<div class="week-toolbar"><div><div class="period">${dateLabel(currentWeek)} 〜 ${dateLabel(shift(currentWeek,6))}</div><div class="caption-line">今週の完了：${counts.done} / ${counts.total} 件</div></div><div class="week-nav"><button class="icon-button" data-week-shift="-7" title="前の週">${icon('chevron').replace('class="ico"','class="ico" style="transform:rotate(180deg)"')}</button><button class="button-secondary" data-week-today>今週</button><button class="icon-button" data-week-shift="7" title="次の週">${icon('chevron')}</button></div></div><div class="day-grid">${weekDates(currentWeek).map(d=>{const n=countFor(d);const selected=key(d)===key(chosenDate),isToday=key(d)===key(today());return `<button class="day-card ${selected?'selected':''} ${isToday?'today':''}" data-select-day="${key(d)}"><div class="dayname">${WEEKDAYS[d.getDay()]}</div><div class="daynumber">${d.getDate()}</div><div class="daydots"><div class="dayfill" style="width:${n.total?Math.round(n.done/n.total*100):100}%"></div></div></button>`}).join('')}</div><div class="panel week-detail"><h2 class="day-heading">${dateLabel(chosenDate,true)} のTo Do</h2><p class="section-sub">固定担当と共同掃除を分けて表示しています。</p>${[['me',state.settings.meName+'の固定担当'],['partner',state.settings.partnerName+'の固定担当'],['shared','共通の掃除・家事']].map(([p,title])=>`<div class="section-head"><h3 class="section-title" style="font-size:14px">${esc(title)}</h3><span class="pill ${p}">${tasksForDate(chosenDate).filter(t=>t.person===p&&!!completion(t,chosenDate)).length}/${tasksForDate(chosenDate).filter(t=>t.person===p).length}</span></div><div class="task-panel">${groupTasks(chosenDate,p)}</div>`).join('')}</div>`;}
+function weekHTML(){const counts=weekCounts(currentWeek);return header('WEEKLY ROUTINE','1週間の家事','曜日ごとの掃除タスクを確認できます。チェック済みの家事は実施者も記録できます。')+`${budgetNotices(budgetWindowsForWeek(currentWeek))}<div class="week-toolbar"><div><div class="period">${dateLabel(currentWeek)} 〜 ${dateLabel(shift(currentWeek,6))}</div><div class="caption-line">今週の完了：${counts.done} / ${counts.total} 件</div></div><div class="week-nav"><button class="icon-button" data-week-shift="-7" title="前の週">${icon('chevron').replace('class="ico"','class="ico" style="transform:rotate(180deg)"')}</button><button class="button-secondary" data-week-today>今週</button><button class="icon-button" data-week-shift="7" title="次の週">${icon('chevron')}</button></div></div><div class="day-grid">${weekDates(currentWeek).map(d=>{const n=countFor(d);const selected=key(d)===key(chosenDate),isToday=key(d)===key(today());return `<button class="day-card ${selected?'selected':''} ${isToday?'today':''}" data-select-day="${key(d)}"><div class="dayname">${WEEKDAYS[d.getDay()]}</div><div class="daynumber">${d.getDate()}</div><div class="daydots"><div class="dayfill" style="width:${n.total?Math.round(n.done/n.total*100):100}%"></div></div></button>`}).join('')}</div><div class="panel week-detail"><h2 class="day-heading">${dateLabel(chosenDate,true)} のTo Do</h2><p class="section-sub">固定担当と共同掃除を分けて表示しています。</p>${[['me',state.settings.meName+'の固定担当'],['partner',state.settings.partnerName+'の固定担当'],['shared','共通の掃除・家事']].map(([p,title])=>`<div class="section-head"><h3 class="section-title" style="font-size:14px">${esc(title)}</h3><span class="pill ${p}">${tasksForDate(chosenDate).filter(t=>t.person===p&&!!completion(t,chosenDate)).length}/${tasksForDate(chosenDate).filter(t=>t.person===p).length}</span></div><div class="task-panel">${groupTasks(chosenDate,p)}</div>`).join('')}</div>`;}
 function recurrenceText(t){if(t.frequency==='daily')return '毎日';if(t.frequency==='weekly')return (t.days||[]).map(d=>WEEKDAYS[d]+'曜').join('・')||'曜日未設定';if(t.frequency==='once')return t.date||'日付未設定';return t.frequency}
 function tasksHTML(){const list=state.tasks.filter(t=>taskFilter==='all'||t.person===taskFilter);return header('TASK LIBRARY','家事を管理する','今ある家事を編集したり、新しい家事を自由に追加できます。追加した家事も毎週の一覧に反映されます。')+`<div class="subhead"><p>登録済み ${state.tasks.length} 件</p><button class="button" data-add-task>${icon('plus')} 新しい家事を追加</button></div><div class="filter-row">${[['all','すべて'],['me',state.settings.meName],['partner',state.settings.partnerName],['shared','共同タスク']].map(([k,l])=>`<button class="filter ${taskFilter===k?'active':''}" data-filter="${k}">${esc(l)}</button>`).join('')}</div><div class="panel">${list.map(t=>`<div class="manage-row"><div class="detail"><div class="manage-title">${esc(t.title)}</div><div class="manage-caption">${esc(t.area)} ・ ${esc(recurrenceText(t))} ・ ${esc(personLabel(t.person))}</div></div><div class="manage-action"><button class="micro-button" data-edit="${esc(t.id)}" title="編集" aria-label="${esc(t.title)}を編集">${icon('edit')}</button><button class="micro-button" data-delete="${esc(t.id)}" title="削除" aria-label="${esc(t.title)}を削除">${icon('trash')}</button></div></div>`).join('')||'<div class="empty-state">この担当の家事はありません</div>'}</div>`;}
 function garbageHTML(){let list=[];for(let i=0;i<35;i++){const d=shift(today(),i),item=garbageFor(d,state.settings);if(item)list.push({d,...item});}return header('GARBAGE CALENDAR','ごみ収集カレンダー',`${esc(state.settings.locality||'登録地域')}の収集パターンを表示しています。特殊な収集日や年度切替は自治体の公式案内をご確認ください。`)+`<div class="notice"><div class="notice-title">${icon('info')} 前夜に準備、当日朝に搬出</div><p>ごみの準備と搬出は${esc(state.settings.partnerName)}の固定担当です。収集日当日の朝8:30までに、指定の集積場所へ出してください。金曜日の品目は基準日を登録するまで「要確認」と表示されます。</p></div><div class="section-head"><h2 class="section-title">今後の収集予定</h2><button class="button-secondary" data-nav="settings">収集日を設定 ${icon('settings')}</button></div><div class="garbage-list">${list.map(x=>`<div class="garbage-item"><div class="garbage-date"><b>${x.d.getDate()}</b><small>${x.d.getMonth()+1}月 ${WEEKDAYS[x.d.getDay()]}曜</small></div><div><div class="garbage-name">${esc(x.name)}</div><div class="garbage-info">${x.uncertain?'<span class="pill warning">収集品目は要確認</span>':'前夜に準備・当日朝8:30までに搬出'}</div></div></div>`).join('')}</div><p class="caption-line" style="margin-top:18px">※ この画面は自治体との自動連携ではありません。祝日、年末年始、収集停止や振替は自治体の公式サイト・地域の配布カレンダーを優先してください。</p>`;}
@@ -142,6 +197,9 @@ document.addEventListener('click',e=>{
  if(b.dataset.edit){editTask(b.dataset.edit);return}
  if(b.dataset.delete){removeTask(b.dataset.delete);return}
  if(b.dataset.confirmDelete){const id=b.dataset.confirmDelete;state.tasks=state.tasks.filter(t=>t.id!==id);save();closeModal();render();toast('削除を保存しています');return}
+ if(b.hasAttribute('data-budget-step')){const p=budgetFromId(b.dataset.budgetStep),i=Number(b.dataset.budgetIndex);if(!p||!Number.isInteger(i)||i<0||i>=budgetSteps[p.kind].length)return;const k=budgetStepRecordKey(p,i);if(state.completions[k])delete state.completions[k];else state.completions[k]={at:new Date().toISOString(),by:'対応済み'};save();render();return}
+ if(b.hasAttribute('data-budget-complete')){const p=budgetFromId(b.dataset.budgetComplete);if(!p)return;const k=budgetRecordKey(p);if(state.completions[k]){delete state.completions[k];save();render();toast('家計簿の整理を未完了に戻しました')}else budgetSelectPerformer(p);return}
+ if(b.hasAttribute('data-budget-person')){const p=budgetFromId(b.dataset.budgetId);if(!p)return;state.completions[budgetRecordKey(p)]={by:b.dataset.budgetPerson,at:new Date().toISOString()};save();closeModal();render();toast('家計簿の整理を完了として記録しました');return}
  if(b.dataset.check){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.check);if(!t)return;const k=recordKey(t,d);if(state.completions[k]){delete state.completions[k];save();render();toast('未完了を保存しています');return}if(t.person==='shared')choosePerformer(t,d);else finish(t,d,personLabel(t.person));return}
  if(b.dataset.changePerson){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.changePerson);if(t)choosePerformer(t,d);return}
  if(b.hasAttribute('data-performer')){const d=dateFromKey(b.dataset.date),t=findTask(b.dataset.date,b.dataset.id);if(t)finish(t,d,b.dataset.performer);return}
