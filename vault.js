@@ -6,10 +6,10 @@ let key=null;
 let writeQueue=Promise.resolve();
 function lockedWrite(fn){const next=writeQueue.then(fn,fn);writeQueue=next.then(()=>{},()=>{});return next}
 const copy=x=>structuredClone(x);
-const empty=()=>({tasks:[],completions:{},ledger:[],settings:{meName:'私',partnerName:'相手',locality:'',fridayAnchor:'',fridayType:'',garbageOverrides:{},garbageRules:{}}});
+const empty=()=>({tasks:[],completions:{},ledger:[],schedules:[],settings:{meName:'私',partnerName:'相手',locality:'',fridayAnchor:'',fridayType:'',garbageOverrides:{},garbageRules:{}}});
 const to64=arr=>{let s='';for(const b of arr)s+=String.fromCharCode(b);return btoa(s)};
 const from64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-function valid(x){if(!x||!Array.isArray(x.tasks)||!x.completions||typeof x.completions!=='object'||!x.settings||typeof x.settings!=='object')throw Error('家事データの形式が正しくありません');if(x.tasks.length>5000|| (x.ledger&&(!Array.isArray(x.ledger)||x.ledger.length>10000)) ||JSON.stringify(x).length>3000000)throw Error('データが大きすぎます');return x}
+function valid(x){if(!x||!Array.isArray(x.tasks)||!x.completions||typeof x.completions!=='object'||!x.settings||typeof x.settings!=='object')throw Error('家事データの形式が正しくありません');if(x.tasks.length>5000|| (x.ledger&&(!Array.isArray(x.ledger)||x.ledger.length>10000))||(x.schedules&&(!Array.isArray(x.schedules)||x.schedules.length>5000)) ||JSON.stringify(x).length>3000000)throw Error('データが大きすぎます');return x}
 function parse(s){let v;try{v=JSON.parse(s)}catch{throw Error('暗号化データを読み取れません')};if(v.type!=='futari-kaji-encrypted-v1'||v.version!==1||v.iterations!==COUNT||!v.salt||!v.iv||!v.ciphertext)throw Error('暗号化データの形式が不正です');return v}
 function current(){const s=localStorage.getItem(STORE);if(!s)throw Error('この端末の保存データが見つかりません');return parse(s)}
 function write(v){try{localStorage.setItem(STORE,JSON.stringify(v))}catch{throw Error('端末に保存できません。ブラウザの保存設定を確認してください')}}
@@ -107,5 +107,43 @@ async function syncMaster(){
  return lockedWrite(async()=>{const local=await load();if(local.settings.sharedScheduleKey!==secret)throw Error('共有設定キーが変更されました。再読み込みしてください');if((local.settings.masterRevision||0)>=remote.revision)return {status:'current',revision:remote.revision,snapshot:local};const updated=mergeMaster(local,remote,secret);await writeDirect(updated);return {status:'updated',revision:remote.revision,snapshot:copy(updated)}});
 }
 
-window.LOCAL_VAULT={connect,restore:()=>'',logout,load,applyChanges,replaceAll,importEncryptedBackup,exportEncryptedBackup,applyLedgerOps,listLedger,isConnected:()=>!!key,hasVault,useMasterKey,syncMaster,getUser:()=> 'この端末'};
+
+/* 共有予定：暗号化した端末保管庫への書き込み。共有済みの遠隔イベントとはversionで突合。 */
+function validateSchedule(x){
+ if(!x||typeof x.id!=='string'||x.id.length>100||!/^sch-[a-zA-Z0-9-]{12,90}$/.test(x.id)||
+ typeof x.version!=='string'||x.version.length>100||!x.version||
+ !/^\d{4}-\d{2}-\d{2}$/.test(x.date)||typeof x.title!=='string'||!x.title.trim()||x.title.length>150||
+ !['me','partner','both'].includes(x.person)||typeof x.place!=='string'||x.place.length>200||
+ typeof x.note!=='string'||x.note.length>1000||
+ (x.time!==''&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(x.time))||
+ (x.deleted!==undefined&&typeof x.deleted!=='boolean'))throw Error('予定の内容を確認してください');
+ return x;
+}
+async function listSchedules(){return copy((await load()).schedules||[])}
+async function saveSchedule(entry){
+ validateSchedule(entry);
+ return lockedWrite(async()=>{const d=await load(),map=new Map((d.schedules||[]).map(r=>[r.id,r]));
+  map.set(entry.id,{...copy(entry),status:'pending'});d.schedules=[...map.values()];await writeDirect(d);return copy(d.schedules)})
+}
+async function mergeScheduleEvents(events){
+ return lockedWrite(async()=>{
+  const d=await load(),map=new Map((d.schedules||[]).map(r=>[r.id,r]));let changed=false;
+  for(const event of events){
+   if(!event||!event.entry||!event.entry.id)continue;
+   const row=event.entry;try{validateSchedule(row)}catch{continue}
+   const previous=map.get(row.id);
+   if(previous?.status==='pending'&&previous.version!==row.version)continue;
+   if(previous?.status==='local'&&previous.version!==row.version)continue;
+   if(row.deleted){if(map.has(row.id)){map.delete(row.id);changed=true}}
+   else{
+    const incoming={...copy(row),status:'synced'};
+    if(JSON.stringify(previous)!==JSON.stringify(incoming)){map.set(row.id,incoming);changed=true}
+   }
+  }
+  if(changed){d.schedules=[...map.values()];await writeDirect(d)}
+  return copy(d.schedules||[])
+ })
+}
+
+window.LOCAL_VAULT={connect,restore:()=>'',logout,load,applyChanges,replaceAll,importEncryptedBackup,exportEncryptedBackup,applyLedgerOps,listLedger,listSchedules,saveSchedule,mergeScheduleEvents,isConnected:()=>!!key,hasVault,useMasterKey,syncMaster,getUser:()=> 'この端末'};
 })();
