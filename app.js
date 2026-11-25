@@ -12,6 +12,7 @@ const defaultSettings={meName:'私',partnerName:'相手',locality:'',fridayAncho
 let state={tasks:[],completions:{},settings:structuredClone(defaultSettings)};
 let view='home',chosenDate=today(),currentWeek=weekStart(today()),taskFilter='all';
 let ready=false, busy=false, refreshing=false, pending=[], refreshToken=0, localBaseline=structuredClone(state);
+let masterChecking=false, masterLastCheck=0;
 const clone=val=>structuredClone(val);
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function syncStatus(text,mode='ok'){
@@ -73,6 +74,22 @@ async function loadRemote(){
     if(!ready)document.querySelector('#screen').innerHTML=`<div class="panel" style="margin:22px"><h2>共有データに読込失敗</h2><p>${esc(err.message)}</p><button class="button" onclick="location.reload()">再読み込み</button></div>`;
   } finally { refreshing=false; }
 }
+
+async function checkMaster(force=false){
+ if(!ready||!remoteStore.isConnected()||busy||pending.length||refreshing||masterChecking||!state.settings.sharedScheduleKey)return;
+ if(!force&&Date.now()-masterLastCheck<60000)return;
+ masterChecking=true;
+ try{
+  const result=await remoteStore.syncMaster();
+  masterLastCheck=Date.now();
+  if(result.status==='updated'&&!pending.length&&!busy){
+   state={tasks:result.snapshot.tasks,completions:result.snapshot.completions,settings:{...clone(defaultSettings),...result.snapshot.settings}};
+   localBaseline=clone(state);render();syncStatus('共通設定 v'+result.revision+' を反映','ok');toast('最新の共通スケジュールを反映しました');
+  }else if(force){toast('共通スケジュールは最新です')}
+ }catch(err){masterLastCheck=Date.now();syncStatus('共通設定の確認に失敗','error');if(force)toast('共有設定を取得できません：'+err.message)}
+ finally{masterChecking=false}
+}
+
 function personLabel(p){return p==='me'?state.settings.meName:p==='partner'?state.settings.partnerName:'どちらでも'}
 function applicable(task,d){if(task.frequency==='daily')return true;if(task.frequency==='weekly')return (task.days||[]).includes(d.getDay());if(task.frequency==='once')return task.date===key(d);return false}
 function tasksForDate(d){return [...state.tasks.filter(t=>applicable(t,d)),...garbageTasksFor(d,state.settings)].sort((a,b)=>{const rank=p=>p==='me'?0:p==='partner'?1:2;return rank(a.person)-rank(b.person)||(a.sort||0)-(b.sort||0)});}
@@ -153,8 +170,18 @@ function weekHTML(){const counts=weekCounts(currentWeek);return header('WEEKLY R
 function recurrenceText(t){if(t.frequency==='daily')return '毎日';if(t.frequency==='weekly')return (t.days||[]).map(d=>WEEKDAYS[d]+'曜').join('・')||'曜日未設定';if(t.frequency==='once')return t.date||'日付未設定';return t.frequency}
 function tasksHTML(){const list=state.tasks.filter(t=>taskFilter==='all'||t.person===taskFilter);return header('TASK LIBRARY','家事を管理する','今ある家事を編集したり、新しい家事を自由に追加できます。追加した家事も毎週の一覧に反映されます。')+`<div class="notice" style="margin-bottom:14px"><div class="notice-title">毎月の必須タスク：家計簿の整理</div><p>月末の最終7日間と、翌月1〜7日に自動表示します。これは削除されない定期タスクで、通常の登録件数とは別に管理されます。</p></div>${budgetNotices(budgetWindowsForDate(today()))}<div class="subhead"><p>登録済み ${state.tasks.length} 件</p><button class="button" data-add-task>${icon('plus')} 新しい家事を追加</button></div><div class="filter-row">${[['all','すべて'],['me',state.settings.meName],['partner',state.settings.partnerName],['shared','共同タスク']].map(([k,l])=>`<button class="filter ${taskFilter===k?'active':''}" data-filter="${k}">${esc(l)}</button>`).join('')}</div><div class="panel">${list.map(t=>`<div class="manage-row"><div class="detail"><div class="manage-title">${esc(t.title)}</div><div class="manage-caption">${esc(t.area)} ・ ${esc(recurrenceText(t))} ・ ${esc(personLabel(t.person))}</div></div><div class="manage-action"><button class="micro-button" data-edit="${esc(t.id)}" title="編集" aria-label="${esc(t.title)}を編集">${icon('edit')}</button><button class="micro-button" data-delete="${esc(t.id)}" title="削除" aria-label="${esc(t.title)}を削除">${icon('trash')}</button></div></div>`).join('')||'<div class="empty-state">この担当の家事はありません</div>'}</div>`;}
 function garbageHTML(){let list=[];for(let i=0;i<35;i++){const d=shift(today(),i),item=garbageFor(d,state.settings);if(item)list.push({d,...item});}return header('GARBAGE CALENDAR','ごみ収集カレンダー',`${esc(state.settings.locality||'登録地域')}の収集パターンを表示しています。特殊な収集日や年度切替は自治体の公式案内をご確認ください。`)+`<div class="notice"><div class="notice-title">${icon('info')} 前夜に準備、当日朝に搬出</div><p>ごみの準備と搬出は${esc(state.settings.partnerName)}の固定担当です。収集日当日の朝8:30までに、指定の集積場所へ出してください。金曜日の品目は基準日を登録するまで「要確認」と表示されます。</p></div><div class="section-head"><h2 class="section-title">今後の収集予定</h2><button class="button-secondary" data-nav="settings">収集日を設定 ${icon('settings')}</button></div><div class="garbage-list">${list.map(x=>`<div class="garbage-item"><div class="garbage-date"><b>${x.d.getDate()}</b><small>${x.d.getMonth()+1}月 ${WEEKDAYS[x.d.getDay()]}曜</small></div><div><div class="garbage-name">${esc(x.name)}</div><div class="garbage-info">${x.uncertain?'<span class="pill warning">収集品目は要確認</span>':'前夜に準備・当日朝8:30までに搬出'}</div></div></div>`).join('')}</div><p class="caption-line" style="margin-top:18px">※ この画面は自治体との自動連携ではありません。祝日、年末年始、収集停止や振替は自治体の公式サイト・地域の配布カレンダーを優先してください。</p>`;}
-function settingsHTML(){const s=state.settings;const overrides=Object.entries(s.garbageOverrides||{}).sort((a,b)=>a[0].localeCompare(b[0]));return header('PREFERENCES','設定・データの管理','端末内の表示名・収集日の例外・暗号化バックアップを管理します。')+`<div class="settings-grid"><section class="panel settings-card"><h3>家事をする人の表示名</h3><p>家事の担当や完了記録に表示する名前です。</p><form id="names-form"><div class="form-field"><label for="name-me">私の表示名</label><input class="input" id="name-me" name="meName" maxlength="30" value="${esc(s.meName)}" required></div><div class="form-field"><label for="name-partner">相手の表示名</label><input class="input" id="name-partner" name="partnerName" maxlength="30" value="${esc(s.partnerName)}" required></div><button class="button" type="submit">名前を保存</button></form></section><section class="panel settings-card"><h3>金曜日の資源物を自動表示</h3><p>市のカレンダーで確認できた金曜日を1日指定すると、以降は隔週交互の目安を表示できます。</p><form id="friday-form"><div class="form-field"><label for="friday-date">収集が確認できた金曜日</label><input class="input" id="friday-date" type="date" name="fridayAnchor" value="${esc(s.fridayAnchor||'')}"></div><div class="form-field"><label for="friday-type">その日の収集品目</label><select class="input" id="friday-type" name="fridayType"><option value="">未設定</option><option value="paper" ${s.fridayType==='paper'?'selected':''}>古紙類</option><option value="bottles" ${s.fridayType==='bottles'?'selected':''}>びん・かん・ペットボトル等</option></select></div><button type="submit" class="button">収集パターンを保存</button><div class="help">年末年始等は隔週パターンが変更される場合があります。公式カレンダーを優先してください。</div></form></section><section class="panel settings-card"><h3>収集日の例外設定</h3><p>休止日や振替収集、金曜日の品目変更を日付ごとに上書きできます。</p><form id="override-form"><div class="form-field"><label for="override-date">対象日</label><input class="input" name="date" id="override-date" type="date" required></div><div class="form-field"><label for="override-type">その日の収集品目</label><select class="input" name="garbage" id="override-type"><option value="none">収集なし</option><option value="燃やせるごみ">燃やせるごみ</option><option value="プラスチック製容器包装・製品">プラスチック製容器包装・製品</option><option value="燃やせないごみ">燃やせないごみ</option><option value="衣類・布類">衣類・布類</option><option value="スプレー缶">スプレー缶</option><option value="古紙類">古紙類</option><option value="びん・かん・ペットボトル・廃食用油・金属類">びん・かん・ペットボトル・廃食用油・金属類</option></select></div><button class="button" type="submit">例外日を追加</button></form>${overrides.length?`<div class="divider"></div><div class="small-list-title">登録済みの例外</div>${overrides.map(([date,label])=>`<div class="small-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(date)}：${esc(label==='none'?'収集なし':label)}</span><button class="micro-button" data-remove-override="${esc(date)}" aria-label="例外を削除">${icon('close')}</button></div>`).join('')}`:''}</section><section class="panel settings-card"><h3>バックアップとデータ移行</h3><p>暗号化バックアップを保存し、別の端末に手動で移せます。非公開GitHubに残した以前のJSONも手動で読み込めます。</p><div class="button-row"><button class="button-secondary" data-export>${icon('download')} バックアップ</button><button class="button-secondary" data-import>${icon('upload')} 読み込み</button><input id="import-file" type="file" accept="application/json,.json" hidden></div><div class="divider"></div><div class="info-callout">完了履歴・家事・ごみ設定は合言葉から作る鍵で暗号化し、この端末内に保存します。2台の自動同期はありません。サイトデータを削除すると記録も消えるため、暗号化バックアップを取ってください。</div></section></div>`;}
-function render(){navHTML();document.querySelector('#top-date').textContent=dateLabel(today(),true);let html;if(view==='home')html=homeHTML();else if(view==='week')html=weekHTML();else if(view==='tasks')html=tasksHTML();else if(view==='garbage')html=garbageHTML();else html=settingsHTML();document.querySelector('#screen').innerHTML=html;if(!state.tasks.length){document.querySelector('#screen').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin-bottom:18px"><div class="notice-title">最初の家事一覧を取り込みましょう</div><p>この端末の家事データはまだ空です。以前の31件は非公開リポジトリに残っています。GitHubにログインして <a href="https://github.com/lifeislikeamelodies2/futari-kaji-private/blob/main/kaji-state.json" target="_blank" rel="noopener noreferrer">kaji-state.json</a> をダウンロードし、設定の「読み込み」から取り込んでください。読み込み後は端末内で暗号化して保存されます。</p><button class="button-secondary" data-nav="settings">設定・読み込みへ</button></div>`)}const logout=document.querySelector('#auth-logout');if(!logout){const top=document.querySelector('.topbar-spacer');if(top)top.insertAdjacentHTML('beforebegin',`<button id="auth-logout" title="家事帖を施錠">施錠</button>`);}}
+function settingsHTML(){const s=state.settings;const overrides=Object.entries(s.garbageOverrides||{}).sort((a,b)=>a[0].localeCompare(b[0]));return header('PREFERENCES','設定・データの管理','端末内の表示名・収集日の例外・暗号化バックアップを管理します。')+`<div class="settings-grid"><section class="panel settings-card"><h3>共有スケジュールの自動更新</h3>
+<p>この端末で最初に1回だけ共有設定キーを登録すると、以後こちらで更新した予定が自動的に反映されます。家事の完了履歴は各端末に残ります。</p>
+<div class="info-callout">共有設定：<strong>${s.sharedScheduleKey?'登録済み':'未登録'}</strong>　／　適用版：${Number(s.masterRevision||0)}<br>初回に共通家事31件とごみ設定が更新されます。端末で独自追加した家事と完了履歴は残ります。</div>
+<form id="master-key-form" class="form-field" style="margin-top:13px">
+<label for="master-key-input">共有設定キー（初回のみ）</label>
+<input type="password" class="input" id="master-key-input" name="masterKey" autocomplete="off" spellcheck="false" placeholder="Privateリポジトリの共有設定キー" required>
+<button type="submit" class="button">登録して最新スケジュールを取得</button>
+</form>
+<div class="button-row" style="margin-top:12px"><button type="button" class="button-secondary" data-master-refresh>最新スケジュールを確認</button></div>
+<p class="help" style="margin-top:10px"><a href="https://github.com/lifeislikeamelodies2/futari-kaji-private/blob/main/shared-schedule-key.txt" target="_blank" rel="noopener noreferrer">共有設定キーの保管場所（Private）</a>。このキーをチャットや公開リポジトリに貼り付けないでください。</p>
+</section><section class="panel settings-card"><h3>家事をする人の表示名</h3><p>家事の担当や完了記録に表示する名前です。</p><form id="names-form"><div class="form-field"><label for="name-me">私の表示名</label><input class="input" id="name-me" name="meName" maxlength="30" value="${esc(s.meName)}" required></div><div class="form-field"><label for="name-partner">相手の表示名</label><input class="input" id="name-partner" name="partnerName" maxlength="30" value="${esc(s.partnerName)}" required></div><button class="button" type="submit">名前を保存</button></form></section><section class="panel settings-card"><h3>金曜日の資源物を自動表示</h3><p>市のカレンダーで確認できた金曜日を1日指定すると、以降は隔週交互の目安を表示できます。</p><form id="friday-form"><div class="form-field"><label for="friday-date">収集が確認できた金曜日</label><input class="input" id="friday-date" type="date" name="fridayAnchor" value="${esc(s.fridayAnchor||'')}"></div><div class="form-field"><label for="friday-type">その日の収集品目</label><select class="input" id="friday-type" name="fridayType"><option value="">未設定</option><option value="paper" ${s.fridayType==='paper'?'selected':''}>古紙類</option><option value="bottles" ${s.fridayType==='bottles'?'selected':''}>びん・かん・ペットボトル等</option></select></div><button type="submit" class="button">収集パターンを保存</button><div class="help">年末年始等は隔週パターンが変更される場合があります。公式カレンダーを優先してください。</div></form></section><section class="panel settings-card"><h3>収集日の例外設定</h3><p>休止日や振替収集、金曜日の品目変更を日付ごとに上書きできます。</p><form id="override-form"><div class="form-field"><label for="override-date">対象日</label><input class="input" name="date" id="override-date" type="date" required></div><div class="form-field"><label for="override-type">その日の収集品目</label><select class="input" name="garbage" id="override-type"><option value="none">収集なし</option><option value="燃やせるごみ">燃やせるごみ</option><option value="プラスチック製容器包装・製品">プラスチック製容器包装・製品</option><option value="燃やせないごみ">燃やせないごみ</option><option value="衣類・布類">衣類・布類</option><option value="スプレー缶">スプレー缶</option><option value="古紙類">古紙類</option><option value="びん・かん・ペットボトル・廃食用油・金属類">びん・かん・ペットボトル・廃食用油・金属類</option></select></div><button class="button" type="submit">例外日を追加</button></form>${overrides.length?`<div class="divider"></div><div class="small-list-title">登録済みの例外</div>${overrides.map(([date,label])=>`<div class="small-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>${esc(date)}：${esc(label==='none'?'収集なし':label)}</span><button class="micro-button" data-remove-override="${esc(date)}" aria-label="例外を削除">${icon('close')}</button></div>`).join('')}`:''}</section><section class="panel settings-card"><h3>バックアップとデータ移行</h3><p>暗号化バックアップを保存し、別の端末に手動で移せます。非公開GitHubに残した以前のJSONも手動で読み込めます。</p><div class="button-row"><button class="button-secondary" data-export>${icon('download')} バックアップ</button><button class="button-secondary" data-import>${icon('upload')} 読み込み</button><input id="import-file" type="file" accept="application/json,.json" hidden></div><div class="divider"></div><div class="info-callout">完了履歴・家事・ごみ設定は合言葉から作る鍵で暗号化し、この端末内に保存します。2台の自動同期はありません。サイトデータを削除すると記録も消えるため、暗号化バックアップを取ってください。</div></section></div>`;}
+function render(){navHTML();document.querySelector('#top-date').textContent=dateLabel(today(),true);let html;if(view==='home')html=homeHTML();else if(view==='week')html=weekHTML();else if(view==='tasks')html=tasksHTML();else if(view==='garbage')html=garbageHTML();else html=settingsHTML();document.querySelector('#screen').innerHTML=html;if(!state.tasks.length){document.querySelector('#screen').insertAdjacentHTML('afterbegin',`<div class="notice" style="margin-bottom:18px"><div class="notice-title">最初の家事一覧を取り込みましょう</div><p>最初の1回だけ「設定」で共有設定キーを登録してください。共通スケジュール31件とごみ設定を暗号化された配信データから読み込みます。以後の変更はアプリが自動確認するため、JSONを何度も取り込む必要はありません。</p><button class="button-secondary" data-nav="settings">設定・読み込みへ</button></div>`)}const logout=document.querySelector('#auth-logout');if(!logout){const top=document.querySelector('.topbar-spacer');if(top)top.insertAdjacentHTML('beforebegin',`<button id="auth-logout" title="家事帖を施錠">施錠</button>`);}}
 function navigate(v){view=v;if(v==='week'){if(!weekDates(currentWeek).some(d=>key(d)===key(chosenDate))){currentWeek=weekStart(today());chosenDate=today()}}render();window.scrollTo({top:0,behavior:'instant'})}
 let toastTimer;
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2400)}
@@ -180,7 +207,8 @@ async function importData(file){try{
   if(!confirm('暗号化されていないJSONを読み込みます。現在の記録を置き換えますか？ 元のJSONは取込後に端末から削除することを推奨します'))return;
   data=await remoteStore.replaceAll(parsed);
  }
- state={tasks:data.tasks,completions:data.completions,settings:{...clone(defaultSettings),...data.settings}};localBaseline=clone(state);pending=[];render();toast('端末内で暗号化して保存しました');
+ if(state.settings.sharedScheduleKey&&!data.settings.sharedScheduleKey){data=await remoteStore.replaceAll({...data,settings:{...data.settings,sharedScheduleKey:state.settings.sharedScheduleKey,masterRevision:0,masterManagedIds:state.settings.masterManagedIds||[]}})}
+ state={tasks:data.tasks,completions:data.completions,settings:{...clone(defaultSettings),...data.settings}};localBaseline=clone(state);pending=[];render();toast('端末内で暗号化して保存しました');void checkMaster(true);
  }catch(err){toast('読み込みに失敗しました：'+err.message)}finally{const input=document.querySelector('#import-file');if(input)input.value=''}}
 document.addEventListener('click',e=>{
  const b=e.target.closest('button');
@@ -206,9 +234,17 @@ document.addEventListener('click',e=>{
  if(b.hasAttribute('data-remove-override')){delete state.settings.garbageOverrides[b.dataset.removeOverride];save();render();toast('例外設定を削除しました');return}
  if(b.hasAttribute('data-export')){exportData();return}
  if(b.hasAttribute('data-import')){document.querySelector('#import-file')?.click();return}
+ if(b.hasAttribute('data-master-refresh')){void checkMaster(true);return}
 });
-document.addEventListener('submit',e=>{
+document.addEventListener('submit',async e=>{
  const form=e.target;if(!(form instanceof HTMLFormElement))return;e.preventDefault();const f=new FormData(form);
+ if(form.id==='master-key-form'){
+  if(pending.length)await flushChanges();if(pending.length){toast('保存中の変更があります。もう一度お試しください');return}
+  const input=document.querySelector('#master-key-input'),btn=form.querySelector('button[type="submit"]');if(btn)btn.disabled=true;
+  try{const result=await remoteStore.useMasterKey(String(f.get('masterKey')||''));state={tasks:result.snapshot.tasks,completions:result.snapshot.completions,settings:{...clone(defaultSettings),...result.snapshot.settings}};localBaseline=clone(state);pending=[];masterLastCheck=Date.now();render();syncStatus('共有設定 v'+result.revision+' を適用','ok');toast('共通スケジュール '+state.tasks.length+' 件を反映しました')}
+  catch(err){toast('共有設定キーを登録できません：'+err.message);if(input)input.value=''}finally{if(btn)btn.disabled=false}
+  return;
+ }
  if(form.id==='task-form'){
   const title=String(f.get('title')||'').trim(),area=String(f.get('area')||'その他').trim()||'その他';const person=f.get('person'),frequency=f.get('frequency');const days=f.getAll('days').map(Number);const date=String(f.get('date')||'');if(!title){toast('家事の名前を入力してください');return}if(frequency==='weekly'&&!days.length){toast('曜日を1つ以上選んでください');return}if(frequency==='once'&&!date){toast('実施日を選んでください');return}
   const existing=form.dataset.id?state.tasks.find(t=>t.id===form.dataset.id):null;const id=existing?.id||'custom-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);const next={id,title,area,person,frequency,days,date,memo:String(f.get('memo')||''),sort:existing?.sort??(Math.max(0,...state.tasks.map(t=>t.sort||0))+1)};if(existing)state.tasks=state.tasks.map(t=>t.id===id?next:t);else state.tasks.push(next);save();closeModal();render();toast(existing?'変更を保存しました':'家事を追加しました');return;
@@ -219,7 +255,7 @@ document.addEventListener('submit',e=>{
 });
 document.addEventListener('change',e=>{if(e.target?.id==='import-file'){const file=e.target.files?.[0];if(file)importData(file)}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(pending.length)void flushChanges();else void loadRemote();}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(pending.length)void flushChanges();else void loadRemote().then(()=>checkMaster(true));}});
 // The private app never caches pages or personal data for offline use.
 if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});}
 document.querySelector('#screen').innerHTML='<div class="panel" style="margin:22px">合言葉を入力すると家事帖を開けます。</div>';
@@ -231,7 +267,7 @@ async function signIn(secret,store){
   state={tasks:result.snapshot.tasks,completions:result.snapshot.completions,settings:{...clone(defaultSettings),...result.snapshot.settings}};
   localBaseline=clone(state);pending=[];ready=true;
   document.querySelector('#auth-overlay').hidden=true;
-  document.querySelector('#passphrase-input').value='';syncStatus('端末内に保存','ok');render();
+  document.querySelector('#passphrase-input').value='';syncStatus('端末内に保存','ok');render();void checkMaster(true);
  }catch(e){error.textContent='開錠できませんでした：'+e.message;syncStatus('認証待ち','error')}
  finally{btn.disabled=false;btn.textContent='家事帖を開く'}
 }
@@ -244,5 +280,5 @@ if(previous){void signIn(previous,false)}
 else{syncStatus('施錠中','error')}
 
 window.addEventListener('beforeunload',event=>{if(pending.length){event.preventDefault();event.returnValue='';}});
-setInterval(()=>{if(document.hidden||!ready)return;if(pending.length)void flushChanges();else void loadRemote()},30000);
+setInterval(()=>{if(document.hidden||!ready)return;if(pending.length)void flushChanges();else void loadRemote().then(()=>checkMaster())},30000);
 })();
