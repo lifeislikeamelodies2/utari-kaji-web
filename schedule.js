@@ -52,7 +52,7 @@ function render(){
  <p class="page-description">日付・内容・対象者・場所・備考を登録します。自分だけ／相手だけ／2人ともを選べます。</p>
  <div class="schedule-info">
  <strong>${sharedKey?'共通予定の読み取り：有効':'共有設定キー：未登録'}</strong>
- <span>保存はまず端末内に暗号化します。2人で共有する場合は、続けてGitHubの投稿画面で「Submit new issue」を押してください。投稿が反映されると、相手の端末にも表示されます。</span>
+ <span>保存はまず端末内に暗号化します。2人で共有する場合は、続けて「GitHubで共有を確定」を開き、GitHubの画面に表示された暗号文を変更せず「Submit new issue」を押してください。投稿が反映されると相手の端末にも表示されます。</span>
  <small>公開GitHubには暗号文だけが投稿されますが、投稿者名・投稿日時は公開されます。予定の本文は公開されません。</small>
  ${!sharedKey?'<button type="button" class="button-secondary" data-nav="settings">設定で共有キーを登録する</button>':''}
  <button type="button" class="button-secondary" data-schedule-refresh ${loading?'disabled':''}>共有予定を再取得</button>
