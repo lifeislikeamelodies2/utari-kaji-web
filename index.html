@@ -37,7 +37,7 @@
     <aside class="sidebar" aria-label="メインメニュー">
       <div class="brand"><span class="brand-mark"><svg class="ico"><use href="#i-home"/></svg></span><div><b>ふたりの家事帖</b><small>暮らしを、ふたりのペースで。</small></div></div>
       <nav id="desktop-nav" class="desktop-nav"></nav>
-      <div class="sidebar-footer"><span class="tiny-dot"></span> 家事記録は非公開GitHubに保存</div>
+      <div class="sidebar-footer"><span class="tiny-dot"></span> 家事記録はこの端末に暗号化保存</div>
     </aside>
     <div class="app-main">
       <header class="topbar"><div class="mobile-brand"><span class="brand-mark small"><svg class="ico"><use href="#i-home"/></svg></span><strong>ふたりの家事帖</strong></div><div class="topbar-spacer"></div><div class="date-chip" id="top-date"></div><div class="sync-chip" id="sync-status" role="status" aria-live="polite">施錠中</div><button id="quick-add" class="icon-button top-add" title="家事を追加" aria-label="家事を追加"><svg class="ico"><use href="#i-plus"/></svg></button></header>
@@ -52,7 +52,7 @@
       <div class="auth-symbol">⌂</div>
       <p class="eyebrow">OUR PRIVATE PLANNER</p>
       <h1 id="auth-title">ふたりの家事帖</h1>
-      <p>家事の予定と完了記録は非公開GitHubリポジトリに保存しています。利用を許可された方だけがデータにアクセスできます。</p>
+      <p>合言葉で、この端末に暗号化保存された家事記録を開きます。別の端末とは自動同期されません。</p>
       <form id="auth-form">
         <label for="passphrase-input">合言葉（初回は16文字以上）</label>
         <input id="passphrase-input" name="passphrase" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="ふたりで決めた長めの合言葉" />
@@ -60,7 +60,7 @@
         <button type="submit" class="button auth-submit" id="auth-submit">家事帖を開く</button>
         <div id="auth-error" class="auth-error" aria-live="polite"></div>
       </form>
-      <p class="auth-footnote">GitHubのパスワードを入力しないでください。トークンを公開ファイルには保存しません。共有端末では「記憶する」を選ばないでください。</p>
+      <p class="auth-footnote">GitHubのパスワードやアクセストークンは不要です。合言葉を忘れると復元できないため、暗号化バックアップを保管してください。</p>
     </div>
   </div>
   <script src="data.js"></script>
