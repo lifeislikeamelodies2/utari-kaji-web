@@ -139,7 +139,7 @@ function render(){
  <label>利用日<input class="input" name="date" type="date" value="${today()}" required></label>
  <label>項目・支払先<input class="input" name="title" type="text" maxlength="160" placeholder="例：11月分の家賃" required></label>
  <div class="ledger-form-two"><label>金額（円）<input class="input" name="amount" type="number" min="1" max="100000000" step="1" inputmode="numeric" required placeholder="例：85000"></label>
- <label>費目<select class="input" name="category" required>${options('家賃')}</select></label></div>
+ <label>費目<select class="input" name="category" required>${options('その他')}</select></label></div>
  <label>メモ（任意）<input class="input" name="memo" maxlength="500" placeholder="支払月や補足など"></label>
  <button class="button" type="submit">支出を保存</button><button class="button-secondary" type="button" data-ledger-edit-cancel hidden>編集を取り消す</button>
  </form></section>
@@ -153,7 +153,7 @@ function render(){
  <section class="panel ledger-panel"><div class="ledger-section-heading"><div><h2>${esc(monthLabel)}の支出一覧</h2><p>明細ごとに家計の対象・対象外を変更できます。</p></div>
  <label class="ledger-excluded-toggle"><input type="checkbox" id="ledger-show-excluded" ${showExcluded?'checked':''}>除外した明細も表示</label></div>
  <div class="ledger-history">${shown.length?shown.map(e=>`<div class="ledger-history-row ${!e.included?'ledger-muted':''}">
- <div class="ledger-history-main"><strong>${esc(e.title)}</strong><small>${esc(e.date)}・${esc(e.category)}・${e.source==='paypay'?'PayPay':'手動'}${!e.included?'・家計対象外':''}</small></div>
+ <div class="ledger-history-main"><strong>${esc(e.title)}</strong><small>${esc(e.date)}・${esc(e.category)}・${e.source==='paypay'?'PayPay':'手動'}${!e.included?'・家計対象外':''}</small><select class="input ledger-history-category" data-ledger-change-category="${esc(e.id)}" aria-label="${esc(e.title)}の費目">${options(e.category)}</select></div>
  <div class="ledger-history-action"><b>${fmt(e.amount)}</b>
  <label><input type="checkbox" data-ledger-toggle="${esc(e.id)}" ${e.included?'checked':''}>家計対象</label>
  <div>${e.source==='manual'?`<button class="micro-button" type="button" data-ledger-edit="${esc(e.id)}" aria-label="明細を編集">編集</button>`:''}
@@ -220,8 +220,9 @@ document.addEventListener('change',e=>{
  if(t.hasAttribute('data-ledger-preview-cat')){const i=Number(t.dataset.ledgerPreviewCat);if(preview[i]&&CATS.includes(t.value))preview[i].category=t.value;return}
  if(t.hasAttribute('data-ledger-toggle')){
   const current=entries.find(x=>x.id===t.dataset.ledgerToggle);if(!current)return;
-  void persist([{kind:'upsert',entry:{...current,included:t.checked}}],'家計対象の設定を変更しました');
+  void persist([{kind:'upsert',entry:{...current,included:t.checked}}],'家計対象の設定を変更しました');return;
  }
+ if(t.hasAttribute('data-ledger-change-category')){const current=entries.find(x=>x.id===t.dataset.ledgerChangeCategory);if(!current||!CATS.includes(t.value))return;void persist([{kind:'upsert',entry:{...current,category:t.value}}],'費目を変更しました')}
 });
 document.addEventListener('submit',e=>{
  const form=e.target;if(!(form instanceof HTMLFormElement)||form.id!=='ledger-manual-form')return;
