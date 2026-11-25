@@ -56,7 +56,7 @@ async function fetchMaster(secret){
   decoded=JSON.parse(D.decode(payload));
  }catch{throw Error('共通スケジュールを展開できませんでした')}
  if(decoded.type!=='futari-kaji-master-schedule-v1'||decoded.revision!==e.revision)throw Error('更新番号が一致しません');
- valid(decoded);
+ if(!Array.isArray(decoded.tasks)||!decoded.settings||typeof decoded.settings!=='object'||decoded.tasks.length>5000||JSON.stringify(decoded).length>3000000)throw Error('共通スケジュールの形式が正しくありません');
  if(decoded.tasks.some(t=>!t||typeof t.id!=='string'||typeof t.title!=='string'||!['daily','weekly','once'].includes(t.frequency)||!['me','partner','shared'].includes(t.person)))throw Error('予定の形式が正しくありません');
  if(new Set(decoded.tasks.map(t=>t.id)).size!==decoded.tasks.length)throw Error('予定IDが重複しています');
  return decoded;
