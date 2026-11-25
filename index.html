@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#264a42">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
   <meta name="description" content="2人の暮らしの家事を、無理なく分け合うための週間ToDoアプリ。">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=20261125-budget">
+  <link rel="stylesheet" href="styles.css?v=20261125-shared">
   <title>ふたりの家事帖</title>
 </head>
 <body>
@@ -52,7 +52,7 @@
       <div class="auth-symbol">⌂</div>
       <p class="eyebrow">OUR PRIVATE PLANNER</p>
       <h1 id="auth-title">ふたりの家事帖</h1>
-      <p>合言葉で、この端末に暗号化保存された家事記録を開きます。別の端末とは自動同期されません。</p>
+      <p>合言葉で、この端末に暗号化保存された家事記録を開きます。初回に共有設定キーを登録すると、共通の予定だけを自動更新できます。完了記録は端末ごとに保存されます。</p>
       <form id="auth-form">
         <label for="passphrase-input">合言葉（初回は16文字以上）</label>
         <input id="passphrase-input" name="passphrase" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="ふたりで決めた長めの合言葉" />
@@ -65,7 +65,7 @@
   </div>
   <script src="data.js"></script>
   <script src="trash.js"></script>
-  <script src="vault.js"></script>
-  <script src="app.js?v=20261125-budget"></script>
+  <script src="vault.js?v=20261125-shared"></script>
+  <script src="app.js?v=20261125-shared"></script>
 </body>
 </html>
