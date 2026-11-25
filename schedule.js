@@ -119,7 +119,7 @@ async function fetchIssues(){
   if(!response.ok)throw Error('GitHubの予定取得に失敗しました（HTTP '+response.status+'）');
   const list=await response.json();if(!Array.isArray(list))throw Error('GitHubの応答形式を確認できません');
   for(const issue of list){
-   if(issue.pull_request||issue.title!==TITLE||!['OWNER','COLLABORATOR','MEMBER'].includes(issue.author_association))continue;
+   if(issue.pull_request||issue.title!==TITLE)continue; // 共有キーでのAES-GCM認証により正規の予定だけを採用
    if(typeof issue.body!=='string'||!issue.body.startsWith(PREFIX))continue;
    try{
     const raw=JSON.parse(issue.body.slice(PREFIX.length));
