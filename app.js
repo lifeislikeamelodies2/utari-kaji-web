@@ -273,7 +273,7 @@ async function signIn(secret,store){
   document.querySelector('#auth-overlay').hidden=true;
   document.querySelector('#passphrase-input').value='';syncStatus('端末内に保存','ok');render();void checkMaster(true);void window.HOUSE_SCHEDULE.refresh(true);
  }catch(e){error.textContent='開錠できませんでした：'+e.message;syncStatus('認証待ち','error')}
- finally{btn.disabled=false;btn.textContent='家事帖を開く'}
+ finally{btn.disabled=false;btn.textContent='開く'}
 }
 document.querySelector('#auth-form').addEventListener('submit',event=>{
  event.preventDefault();const input=document.querySelector('#passphrase-input');
