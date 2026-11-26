@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=20261125-schedule-savefix">
+  <link rel="stylesheet" href="styles.css?v=20261126-login-clean">
   <title>ふたりの家事帖</title>
 </head>
 <body>
@@ -51,17 +51,14 @@
   <div id="auth-overlay" class="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title">
     <div class="auth-card">
       <div class="auth-symbol">⌂</div>
-      <p class="eyebrow">OUR PRIVATE PLANNER</p>
       <h1 id="auth-title">ふたりの家事帖</h1>
-      <p>合言葉で、この端末に暗号化保存された家事記録を開きます。初回に共有設定キーを登録すると、共通の予定だけを自動更新できます。完了記録は端末ごとに保存されます。</p>
       <form id="auth-form">
-        <label for="passphrase-input">合言葉（初回は16文字以上）</label>
-        <input id="passphrase-input" name="passphrase" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="ふたりで決めた長めの合言葉" />
-        <div class="help">初回は16文字以上の合言葉を設定します。2回目以降も同じ合言葉を使用します。忘れると復元できません。</div><div id="confirm-wrap" class="form-field"><label for="confirm-passphrase">合言葉をもう一度入力（初回のみ）</label><input id="confirm-passphrase" class="input" type="password" autocomplete="new-password" spellcheck="false" placeholder="確認用の合言葉"></div>
-        <button type="submit" class="button auth-submit" id="auth-submit">家事帖を開く</button>
+        <label for="passphrase-input">合言葉</label>
+        <input id="passphrase-input" name="passphrase" class="input" type="password" required autocomplete="off" spellcheck="false" placeholder="合言葉を入力" />
+        <div id="confirm-wrap" class="form-field"><div class="help">初回は16文字以上で設定</div><label for="confirm-passphrase">合言葉の確認</label><input id="confirm-passphrase" class="input" type="password" autocomplete="new-password" spellcheck="false" placeholder="もう一度入力"></div>
+        <button type="submit" class="button auth-submit" id="auth-submit">開く</button>
         <div id="auth-error" class="auth-error" aria-live="polite"></div>
       </form>
-      <p class="auth-footnote">GitHubのパスワードやアクセストークンは不要です。合言葉を忘れると復元できないため、暗号化バックアップを保管してください。</p>
     </div>
   </div>
   <script src="data.js"></script>
