@@ -51,8 +51,8 @@ function render(){
  return `<div class="eyebrow">SHARED SCHEDULE</div><h1 class="page-title">ふたりの予定</h1>
  <p class="page-description">日付・内容・対象者・場所・備考を登録します。自分だけ／相手だけ／2人ともを選べます。</p>
  <div class="schedule-info">
- <strong>${sharedKey?'共有予定は自動更新':'共有設定キーが未登録です'}</strong>
- ${sharedKey?'':'<button type="button" class="button-secondary" data-nav="settings">設定する</button>'}
+ <strong>${sharedKey?'GitHubの予定を自動反映':'共有設定キーが未登録です'}</strong>
+ ${sharedKey?'<small>新規・変更・削除の共有は「GitHubで共有を確定」が必要です。</small>':'<button type="button" class="button-secondary" data-nav="settings">設定する</button>'}
  </div>
  ${message?`<div class="notice" role="status">${esc(message)}</div>`:''}
  <section class="panel schedule-form-panel">
