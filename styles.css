@@ -207,3 +207,20 @@
  .hero-cat{width:50%;right:-35px;opacity:.63}
  .hero-main .hero-schedule{width:82%}
 }
+
+/* 猫のモノクロ・ハーフトーン背景：1か月の予定用。文字は左側で読みやすく保つ */
+.hero-main{
+  background-color:#405b45;
+  background-image:linear-gradient(90deg,rgba(28,58,41,.42) 0%,rgba(31,62,44,.32) 43%,rgba(31,62,44,.07) 100%),var(--cat-banner-art,linear-gradient(115deg,#405b45,#53765a));
+  background-size:cover,cover;
+  background-position:center,center;
+  background-repeat:no-repeat;
+}
+.hero-main:after{display:none}
+.hero-schedule-head,.hero-schedule-list,.hero-button{position:relative;z-index:2}
+.hero-schedule-row{background:rgba(23,49,35,.62);border-color:rgba(239,245,232,.20);backdrop-filter:blur(1px)}
+.hero-schedule-head button{background:rgba(30,57,41,.65)}
+@media(max-width:740px){
+  .hero-main{background-position:center,68% center}
+  .hero-schedule-row{background:rgba(23,49,35,.72)}
+}
