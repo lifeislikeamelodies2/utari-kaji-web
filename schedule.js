@@ -51,11 +51,8 @@ function render(){
  return `<div class="eyebrow">SHARED SCHEDULE</div><h1 class="page-title">ふたりの予定</h1>
  <p class="page-description">日付・内容・対象者・場所・備考を登録します。自分だけ／相手だけ／2人ともを選べます。</p>
  <div class="schedule-info">
- <strong>${sharedKey?'共通予定の読み取り：有効':'共有設定キー：未登録'}</strong>
- <span>保存はまず端末内に暗号化します。2人で共有する場合は、続けて「GitHubで共有を確定」を開き、GitHubの画面に表示された暗号文を変更せず「Submit new issue」を押してください。投稿が反映されると相手の端末にも表示されます。</span>
- <small>公開GitHubには暗号文だけが投稿されますが、投稿者名・投稿日時は公開されます。予定の本文は公開されません。</small>
- ${!sharedKey?'<button type="button" class="button-secondary" data-nav="settings">設定で共有キーを登録する</button>':''}
- <button type="button" class="button-secondary" data-schedule-refresh ${loading?'disabled':''}>共有予定を再取得</button>
+ <strong>${sharedKey?'共有予定は自動更新':'共有設定キーが未登録です'}</strong>
+ ${sharedKey?'':'<button type="button" class="button-secondary" data-nav="settings">設定する</button>'}
  </div>
  ${message?`<div class="notice" role="status">${esc(message)}</div>`:''}
  <section class="panel schedule-form-panel">
@@ -135,17 +132,18 @@ async function fetchIssues(){
 }
 async function refresh(force=false){
  if(!sharedKey||refreshing||loading)return;
- if(!force&&Date.now()-lastRefresh<300000)return;
+ if(!force&&Date.now()-lastRefresh<180000)return;
  refreshing=true;
  try{
   const events=await fetchIssues();
   entries=await vault().mergeScheduleEvents(events);
-  lastRefresh=Date.now();message=force?'共有予定を確認しました':'';
+  lastRefresh=Date.now();if(message.startsWith('共有予定を取得できません'))message='';
   await buildLinks();callback('remote');
  }catch(e){message='共有予定を取得できません：'+e.message;callback('remote')}
  finally{refreshing=false}
 }
 function init(onChange){callback=onChange}
+function refreshOnView(){return refresh()}
 function attach(snapshot){
  const nextEntries=Array.isArray(snapshot?.schedules)?snapshot.schedules.slice():[];
  const nextLabels={meName:snapshot.settings?.meName||'私',partnerName:snapshot.settings?.partnerName||'相手'};
@@ -210,7 +208,6 @@ document.addEventListener('click',e=>{
  if(b.hasAttribute('data-schedule-edit')){editId=b.dataset.scheduleEdit;callback();return}
  if(b.hasAttribute('data-schedule-cancel')){editId='';callback();return}
  if(b.hasAttribute('data-schedule-delete')){void deleteEntry(b.dataset.scheduleDelete);return}
- if(b.hasAttribute('data-schedule-refresh')){void refresh(true);return}
 });
 document.addEventListener('change',e=>{
  const t=e.target;
@@ -219,5 +216,5 @@ document.addEventListener('change',e=>{
 document.addEventListener('submit',e=>{
  if(e.target?.id==='schedule-form'){e.preventDefault();void saveFromForm(e.target)}
 });
-window.HOUSE_SCHEDULE={init,attach,refresh,render,homeHTML,upcoming};
+window.HOUSE_SCHEDULE={init,attach,refresh,refreshOnView,render,homeHTML,upcoming};
 })();
