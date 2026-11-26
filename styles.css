@@ -174,3 +174,8 @@
 @media(max-width:375px){.mobile-nav .nav-item{font-size:8px}.mobile-nav .nav-item .ico{width:17px;height:17px}}
 
 .schedule-form-feedback{font-size:12px;line-height:1.7;margin:10px 0 0;color:#94603c;min-height:1.2em}
+
+/* ホームの予定欄は説明文なしでコンパクトに表示 */
+.hero .hero-main{min-height:0;padding:20px 24px}
+.hero-main .hero-schedule{border-top:0;margin-top:0;padding-top:0}
+@media(max-width:740px){.hero .hero-main{min-height:0;padding:18px}}
