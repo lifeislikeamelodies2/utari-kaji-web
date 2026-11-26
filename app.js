@@ -162,7 +162,7 @@ return `<div class="task-row ${done?'done':''}"><button aria-label="${done?'未�
 function groupTasks(d,group){const tasks=tasksForDate(d).filter(t=>t.person===group);if(!tasks.length)return '<div class="empty-state">この日の予定はありません</div>';return tasks.map(t=>taskHTML(t,d)).join('')}
 function nextGarbage(){for(let i=0;i<8;i++){const d=shift(today(),i);const g=garbageFor(d,state.settings);if(g)return {date:d,...g};}return null}
 function homeHTML(){const now=today(),daily=countFor(now),weekly=weekCounts(weekStart(now),true),upcoming=nextGarbage();
-return header('HOME PLANNER',`${now.getMonth()+1}月${now.getDate()}日、今日の家事。`,'決めている担当はそのままに、掃除はできる方から。<br>今日の「やること」をひと目で確認できます。')+`
+return `<h1 class="page-title">${esc(dateLabel(now,true))}</h1>
 <div class="hero"><div class="hero-main">${window.HOUSE_SCHEDULE.homeHTML()}<button class="hero-button" data-nav="week">今週の予定を見る ${icon('arrow')}</button></div><div class="panel progress-card"><div><h3>今日の達成状況</h3><p>あと ${Math.max(daily.total-daily.done,0)} 件</p><div class="progress-number">${daily.done}<small>/ ${daily.total} 件</small></div></div><div class="progress-ring" style="--p:${daily.total?Math.round(daily.done/daily.total*100):100}%"><span>${daily.total?Math.round(daily.done/daily.total*100):100}%</span></div></div></div>
 ${budgetNotices(budgetWindowsForDate(now))}
 <div class="summary-strip"><div class="summary-box"><span class="mini-icon">${icon('check')}</span><div><small>今週の共同タスク</small><b>${weekly.done} / ${weekly.total} 件</b></div></div><div class="summary-box"><span class="mini-icon peach">${icon('trash')}</span><div><small>次のごみ収集</small><b style="font-size:12px">${upcoming?esc(dateLabel(upcoming.date)):'予定なし'}</b></div></div></div>
