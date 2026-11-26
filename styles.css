@@ -179,3 +179,31 @@
 .hero .hero-main{min-height:0;padding:20px 24px}
 .hero-main .hero-schedule{border-top:0;margin-top:0;padding-top:0}
 @media(max-width:740px){.hero .hero-main{min-height:0;padding:18px}}
+
+
+/* Home: the schedule is the main focus; cat art is decorative behind the cards. */
+.hero-main{isolation:isolate;min-height:310px;padding:25px 26px 24px;background:linear-gradient(115deg,#24493f 6%,#305d4d 58%,#54745b 100%)}
+.hero-main::after{display:none}
+.hero-cat{position:absolute;right:-18px;bottom:-14px;width:clamp(190px,42%,330px);height:auto;opacity:.85;mix-blend-mode:screen;pointer-events:none;z-index:0;filter:grayscale(1) contrast(1.18)}
+.hero-main .hero-schedule{position:relative;z-index:1;width:min(100%,72%);margin:0;padding:0;border:0}
+.hero-schedule-head{align-items:center;margin-bottom:14px;gap:12px}
+.hero-schedule-head strong{font-size:18px;line-height:1.45;letter-spacing:.02em}
+.hero-schedule-head button{font-size:12px;padding:6px 10px;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.38)}
+.hero-schedule-list{max-height:280px;padding-right:5px;gap:8px}
+.hero-schedule-row{background:rgba(18,45,34,.56);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(2px);grid-template-columns:84px minmax(0,1fr);padding:10px}
+.hero-schedule-row b{font-size:11px}
+.hero-schedule-row span{font-size:13px}
+.hero-schedule-row small{font-size:11px}
+.hero-main .hero-schedule-empty{max-width:none;color:#e0ece2;font-size:13px;margin:8px 0 0}
+@media(max-width:740px){
+ .hero-main{min-height:245px;padding:22px 18px}
+ .hero-cat{width:clamp(150px,44%,240px);right:-24px;bottom:-8px;opacity:.42}
+ .hero-main .hero-schedule{width:100%}
+ .hero-schedule-list{max-height:260px}
+ .hero-schedule-row{max-width:100%;grid-template-columns:75px minmax(0,1fr)}
+ .hero-schedule-head strong{font-size:17px}
+}
+@media(min-width:741px) and (max-width:1040px){
+ .hero-cat{width:50%;right:-35px;opacity:.63}
+ .hero-main .hero-schedule{width:82%}
+}
